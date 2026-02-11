@@ -1,0 +1,212 @@
+.wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.wizard-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.wizard-steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  color: #999;
+  cursor: default;
+}
+
+.wizard-step .step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #999;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.wizard-step.active {
+  color: #1a1a2e;
+  font-weight: 600;
+}
+
+.wizard-step.active .step-number {
+  background: #2d5bce;
+  color: #fff;
+}
+
+.wizard-step.completed {
+  color: #065f46;
+}
+
+.wizard-step.completed .step-number {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.wizard-step-divider {
+  width: 32px;
+  height: 2px;
+  background: #e0e0e0;
+  align-self: center;
+}
+
+.wizard-panel {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Connect step */
+.connection-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 600px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #2d5bce;
+  box-shadow: 0 0 0 2px rgba(45, 91, 206, 0.15);
+}
+
+.auth-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.auth-toggle input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.btn-primary {
+  background: #2d5bce;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary:hover { background: #2449a8; }
+.btn-primary:disabled { background: #a0b4e0; cursor: not-allowed; }
+
+.btn-secondary {
+  background: #e8e8e8;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-secondary:hover { background: #d8d8d8; }
+
+.feedback {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.feedback-success { color: #065f46; }
+.feedback-error   { color: #991b1b; }
+
+/* Assess step */
+.assess-step {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.assess-step p {
+  color: #666;
+  margin-bottom: 1.25rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #2d5bce;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.assess-running {
+  text-align: center;
+  padding: 2rem 0;
+  color: #555;
+}
+
+/* Review step */
+.review-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}

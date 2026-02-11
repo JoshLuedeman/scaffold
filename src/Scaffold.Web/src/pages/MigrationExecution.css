@@ -1,0 +1,216 @@
+.migration-execution {
+  max-width: 800px;
+}
+
+.migration-execution h2 {
+  margin: 0.5rem 0 1.25rem;
+  font-size: 1.4rem;
+}
+
+.exec-section {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.25rem;
+}
+
+.exec-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+/* Connection indicator */
+.exec-connection {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.conn-disconnected { background: #ccc; }
+.conn-connecting { background: #f59e0b; }
+.conn-connected { background: #10b981; }
+.conn-reconnecting { background: #f59e0b; animation: blink 1s infinite; }
+
+/* Status indicator */
+.exec-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  text-transform: capitalize;
+}
+
+.exec-status-running { color: #2d5bce; }
+.exec-status-completed { color: #065f46; }
+.exec-status-failed { color: #dc2626; }
+.exec-status-idle { color: #888; }
+
+.status-icon { font-size: 1.1rem; }
+
+.pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Progress */
+.progress-phase {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 12px;
+  background: #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #2d5bce;
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+
+.progress-meta {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* Cutover button */
+.btn-cutover {
+  background: #d97706;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-cutover:hover { background: #b45309; }
+.btn-cutover:disabled { background: #c9a861; cursor: not-allowed; }
+
+/* Log */
+.exec-log {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  background: #fafafa;
+}
+
+.log-entry {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+}
+
+.log-time {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.log-msg {
+  color: #333;
+  word-break: break-word;
+}
+
+/* Validation */
+.validation-summary {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.validation-pass { color: #065f46; }
+.validation-fail { color: #dc2626; }
+
+.validation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.validation-table th {
+  text-align: left;
+  font-weight: 600;
+  color: #555;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid #e0e0e0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.validation-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.row-pass td { color: #1a1a1a; }
+.row-fail td { color: #7f1d1d; background: #fef2f2; }
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-pass { background: #d1fae5; color: #065f46; }
+.badge-fail { background: #fee2e2; color: #991b1b; }
+
+/* Shared utilities */
+.btn-primary {
+  background: #2d5bce;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary:hover { background: #2449a8; }
+.btn-primary:disabled { background: #93a5d1; cursor: not-allowed; }
+
+.feedback { font-size: 0.85rem; margin-top: 0.5rem; }
+.feedback-error { color: #dc2626; }
+.feedback-success { color: #065f46; }
