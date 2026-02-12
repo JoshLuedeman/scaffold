@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.39.26.7824",
-      "templateHash": "12317710496716133972"
+      "version": "0.40.2.10011",
+      "templateHash": "10252382562194679950"
     }
   },
   "parameters": {
@@ -26,6 +26,20 @@
       "type": "securestring",
       "metadata": {
         "description": "SQL admin password"
+      }
+    },
+    "azureClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID Client ID for the App Registration"
+      }
+    },
+    "azureTenantId": {
+      "type": "string",
+      "defaultValue": "[tenant().tenantId]",
+      "metadata": {
+        "description": "Entra ID Tenant ID"
       }
     }
   },
@@ -59,8 +73,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "5236934729783192505"
+              "version": "0.40.2.10011",
+              "templateHash": "895018069320441043"
             }
           },
           "parameters": {
@@ -169,8 +183,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "9091549958438033585"
+              "version": "0.40.2.10011",
+              "templateHash": "6434158189839126583"
             }
           },
           "parameters": {
@@ -238,6 +252,12 @@
           },
           "corsOrigin": {
             "value": "[format('https://{0}', reference(resourceId('Microsoft.Resources/deployments', 'staticWebApp'), '2025-04-01').outputs.defaultHostname.value)]"
+          },
+          "azureClientId": {
+            "value": "[parameters('azureClientId')]"
+          },
+          "azureTenantId": {
+            "value": "[parameters('azureTenantId')]"
           }
         },
         "template": {
@@ -246,8 +266,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "15902036614492153183"
+              "version": "0.40.2.10011",
+              "templateHash": "7990931386116790237"
             }
           },
           "parameters": {
@@ -275,6 +295,20 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Allowed CORS origin (Static Web App URL)"
+              }
+            },
+            "azureClientId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID Client ID"
+              }
+            },
+            "azureTenantId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Entra ID Tenant ID"
               }
             }
           },
@@ -312,7 +346,7 @@
                         "cpu": "[json('0.25')]",
                         "memory": "0.5Gi"
                       },
-                      "env": "[concat(if(not(empty(parameters('sqlConnectionString'))), createArray(createObject('name', 'ConnectionStrings__DefaultConnection', 'value', parameters('sqlConnectionString'))), createArray()), createArray())]"
+                      "env": "[concat(if(not(empty(parameters('sqlConnectionString'))), createArray(createObject('name', 'ConnectionStrings__DefaultConnection', 'value', parameters('sqlConnectionString'))), createArray()), if(not(empty(parameters('azureClientId'))), createArray(createObject('name', 'AzureAd__TenantId', 'value', parameters('azureTenantId')), createObject('name', 'AzureAd__ClientId', 'value', parameters('azureClientId')), createObject('name', 'AzureAd__Audience', 'value', format('api://{0}', parameters('azureClientId')))), createArray(createObject('name', 'DisableAuth', 'value', 'true'))))]"
                     }
                   ],
                   "scale": {
@@ -354,6 +388,109 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
+      "name": "acr",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[variables('prefix')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "containerAppPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'containerApp'), '2025-04-01').outputs.containerAppPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "1034695593371424313"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource name prefix"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "containerAppPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID to grant AcrPull role"
+              }
+            }
+          },
+          "variables": {
+            "acrName": "[replace(replace(format('{0}acr', parameters('prefix')), '-', ''), '_', '')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Basic"
+              },
+              "properties": {
+                "adminUserEnabled": false
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('containerAppPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), parameters('containerAppPrincipalId'), '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                "principalId": "[parameters('containerAppPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "acrId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]"
+            },
+            "loginServer": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), '2023-07-01').loginServer]"
+            },
+            "name": {
+              "type": "string",
+              "value": "[if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'containerApp')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
       "name": "keyVault",
       "properties": {
         "expressionEvaluationOptions": {
@@ -377,8 +514,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "8690197637310819001"
+              "version": "0.40.2.10011",
+              "templateHash": "14561897790232480871"
             }
           },
           "parameters": {
@@ -424,7 +561,7 @@
               "condition": "[not(empty(parameters('containerAppPrincipalId')))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.KeyVault/vaults/{0}', if(greater(length(variables('vaultName')), 24), substring(variables('vaultName'), 0, 24), variables('vaultName')))]",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', if(greater(length(variables('vaultName')), 24), substring(variables('vaultName'), 0, 24), variables('vaultName')))]",
               "name": "[guid(resourceId('Microsoft.KeyVault/vaults', if(greater(length(variables('vaultName')), 24), substring(variables('vaultName'), 0, 24), variables('vaultName'))), parameters('containerAppPrincipalId'), '4633458b-17de-408a-b874-0445c86b69e6')]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
@@ -482,8 +619,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "4019526766340513810"
+              "version": "0.40.2.10011",
+              "templateHash": "7686055500159656717"
             }
           },
           "parameters": {
@@ -529,7 +666,7 @@
               "condition": "[not(empty(parameters('containerAppPrincipalId')))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', if(greater(length(variables('storageName')), 24), substring(variables('storageName'), 0, 24), variables('storageName')))]",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageName')), 24), substring(variables('storageName'), 0, 24), variables('storageName')))]",
               "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageName')), 24), substring(variables('storageName'), 0, 24), variables('storageName'))), parameters('containerAppPrincipalId'), 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
@@ -586,6 +723,14 @@
     "staticWebAppHostname": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'staticWebApp'), '2025-04-01').outputs.defaultHostname.value]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.loginServer.value]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.name.value]"
     }
   }
 }

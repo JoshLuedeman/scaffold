@@ -10,6 +10,12 @@ param location string = resourceGroup().location
 @secure()
 param sqlAdminPassword string
 
+@description('Entra ID Client ID for the App Registration')
+param azureClientId string = ''
+
+@description('Entra ID Tenant ID')
+param azureTenantId string = tenant().tenantId
+
 var prefix = 'scaffold-${environmentName}'
 
 module sql 'modules/sqlDatabase.bicep' = {
@@ -36,6 +42,17 @@ module containerApp 'modules/containerApp.bicep' = {
     location: location
     sqlConnectionString: sql.outputs.connectionString
     corsOrigin: 'https://${staticWebApp.outputs.defaultHostname}'
+    azureClientId: azureClientId
+    azureTenantId: azureTenantId
+  }
+}
+
+module acr 'modules/containerRegistry.bicep' = {
+  name: 'acr'
+  params: {
+    prefix: prefix
+    location: location
+    containerAppPrincipalId: containerApp.outputs.containerAppPrincipalId
   }
 }
 
@@ -63,3 +80,5 @@ output keyVaultUri string = keyVault.outputs.keyVaultUri
 output storageAccountName string = storage.outputs.storageAccountName
 output containerAppFqdn string = containerApp.outputs.containerAppFqdn
 output staticWebAppHostname string = staticWebApp.outputs.defaultHostname
+output acrLoginServer string = acr.outputs.loginServer
+output acrName string = acr.outputs.name

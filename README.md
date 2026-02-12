@@ -2,7 +2,7 @@
 
 A web application for assessing, planning, and executing SQL Server database migrations to Azure SQL services.
 
-![CI](https://github.com/YOUR_ORG/scaffold/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/JoshLuedeman/scaffold/actions/workflows/ci.yml/badge.svg)
 
 ## Features
 
@@ -115,12 +115,59 @@ dotnet test
 4. **Plan** — Select objects to migrate, configure target database, choose pre/post migration scripts
 5. **Execute** — Run the migration with real-time progress tracking and post-migration validation
 
+## Deploy to Azure
+
+The fastest way to deploy Scaffold to your Azure environment:
+
+### Prerequisites
+
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+- [Azure Developer CLI (azd)](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
+- An Azure subscription with permissions to create resources
+
+### One-Command Deployment
+
+```bash
+azd up
+```
+
+This will:
+
+1. **Set up authentication** — If you don't have an Entra ID App Registration, the deployment will create one for you automatically. If you already have one, you can provide its Client ID instead.
+2. **Provision infrastructure** — Deploys Azure SQL Database, Container App, Static Web App, Key Vault, Container Registry, and Storage Account via Bicep.
+3. **Build and deploy** — Builds the API container and frontend, then deploys them to Azure.
+4. **Configure redirect URIs** — Automatically updates the App Registration with the deployed URLs.
+
+### After Deployment
+
+If a new App Registration was created, an admin must grant API permissions:
+
+```bash
+az ad app permission admin-consent --id <CLIENT_ID>
+```
+
+The deployment summary will show the Client ID and provide the exact command to run.
+
+### What Gets Deployed
+
+| Resource | Purpose |
+|----------|---------|
+| Azure SQL Database | Scaffold metadata store |
+| Azure Container App | API backend (.NET 8) |
+| Azure Static Web App | Frontend (React) |
+| Azure Container Registry | API container image hosting |
+| Azure Key Vault | Secret storage for database credentials |
+| Azure Storage Account | Migration artifacts |
+| Entra ID App Registration | User authentication (created or provided) |
+
 ## Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ConnectionStrings__DefaultConnection` | Scaffold metadata database | `Server=localhost;Database=ScaffoldDb;...` |
-| `DisableAuth` | Disable Azure AD authentication (dev only) | `false` |
+| `AzureAd__TenantId` | Entra ID tenant | Set by deployment |
+| `AzureAd__ClientId` | App Registration client ID | Set by deployment |
+| `DisableAuth` | Disable authentication (dev only) | `false` |
 
 > ⚠️ **Warning**: Never set `DisableAuth=true` in production.
 

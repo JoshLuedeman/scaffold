@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: scaffold
+metadata:
+  template: scaffold@0.1.0
+
+hooks:
+  preprovision:
+    shell: sh
+    run: hooks/preprovision.sh
+    interactive: true
+    continueOnError: false
+  postprovision:
+    shell: sh
+    run: hooks/postprovision.sh
+    interactive: true
+    continueOnError: false
+
+services:
+  api:
+    project: src/Scaffold.Api
+    host: containerapp
+    language: dotnet
+    docker:
+      path: src/Scaffold.Api/Dockerfile
+      context: .
+  web:
+    project: src/Scaffold.Web
+    host: staticwebapp
+    language: js
+    dist: dist
+    build:
+      steps:
+        - run: npm ci
+          shell: sh
+        - run: npm run build
+          shell: sh
