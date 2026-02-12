@@ -75,21 +75,28 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalXXS,
     flex: 1,
     minWidth: 0,
+    '& a': {
+      color: tokens.colorBrandForegroundLink,
+      textDecoration: 'none',
+      ':hover': {
+        color: tokens.colorBrandForegroundLinkHover,
+        textDecoration: 'underline',
+      },
+    },
   },
   cardMeta: {
     display: 'flex',
     gap: tokens.spacingHorizontalL,
-    color: '#444444',
+    color: tokens.colorNeutralForeground3,
   },
   cardActions: {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: tokens.spacingHorizontalS,
     marginTop: tokens.spacingVerticalXS,
-    color: '#333333',
   },
   subtitle: {
-    color: '#444444',
+    color: tokens.colorNeutralForeground3,
   },
   centered: {
     display: 'flex',
