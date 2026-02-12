@@ -159,7 +159,7 @@ export default function AssessmentReport({ report, projectId }: { report: Report
 
   useEffect(() => {
     if (!selectedService) {
-      setFilteredIssues([...compatibilityIssues].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]));
+      setFilteredIssues([...compatibilityIssues].filter((i) => i.severity !== 'Supported').sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]));
       return;
     }
     api.post<{ compatibilityIssues: CompatibilityIssue[] }>(`/projects/${projectId}/assessments/evaluate-target`, { targetService: selectedService })
