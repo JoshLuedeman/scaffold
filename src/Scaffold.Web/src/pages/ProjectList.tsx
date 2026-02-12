@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
@@ -21,7 +21,6 @@ import {
   AddRegular,
   DeleteRegular,
   FolderOpenRegular,
-  OpenRegular,
 } from '@fluentui/react-icons';
 import { api } from '../services/api';
 import type { MigrationProject, ProjectStatus } from '../types';
@@ -75,14 +74,6 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalXXS,
     flex: 1,
     minWidth: 0,
-    '& a': {
-      color: tokens.colorBrandForegroundLink,
-      textDecoration: 'none',
-      ':hover': {
-        color: tokens.colorBrandForegroundLinkHover,
-        textDecoration: 'underline',
-      },
-    },
   },
   cardMeta: {
     display: 'flex',
@@ -128,6 +119,7 @@ const useStyles = makeStyles({
 
 export default function ProjectList() {
   const styles = useStyles();
+  const navigate = useNavigate();
 
   const [projects, setProjects] = useState<MigrationProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,12 +233,10 @@ export default function ProjectList() {
       ) : (
         <div className={styles.grid}>
           {projects.map((p) => (
-            <Card key={p.id} className={styles.card} as="div">
+            <Card key={p.id} className={styles.card} as="div" onClick={() => navigate(`/projects/${p.id}`)}>
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
-                  <Link to={`/projects/${p.id}`}>
-                    <Text weight="semibold" size={400}>{p.name}</Text>
-                  </Link>
+                  <Text weight="semibold" size={400}>{p.name}</Text>
                   {p.description && (
                     <Text size={200} className={styles.subtitle} truncate wrap={false}>
                       {p.description}
@@ -262,15 +252,6 @@ export default function ProjectList() {
                 <span>Updated {new Date(p.updatedAt).toLocaleDateString()}</span>
               </div>
               <div className={styles.cardActions}>
-                <Button
-                  appearance="outline"
-                  size="small"
-                  icon={<OpenRegular />}
-                  as="a"
-                  href={`/projects/${p.id}`}
-                >
-                  Open
-                </Button>
                 <Button
                   appearance="outline"
                   size="small"
