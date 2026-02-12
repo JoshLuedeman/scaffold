@@ -16,6 +16,7 @@ public class ScaffoldDbContext : DbContext
     public DbSet<AssessmentReport> AssessmentReports => Set<AssessmentReport>();
     public DbSet<MigrationPlan> MigrationPlans => Set<MigrationPlan>();
     public DbSet<MigrationResult> MigrationResults => Set<MigrationResult>();
+    public DbSet<MigrationProgressRecord> MigrationProgressRecords => Set<MigrationProgressRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +27,7 @@ public class ScaffoldDbContext : DbContext
         ConfigureAssessmentReport(modelBuilder);
         ConfigureMigrationPlan(modelBuilder);
         ConfigureMigrationResult(modelBuilder);
+        ConfigureMigrationProgressRecord(modelBuilder);
     }
 
     private static void ConfigureMigrationProject(ModelBuilder modelBuilder)
@@ -140,6 +142,10 @@ public class ScaffoldDbContext : DbContext
             entity.Property(p => p.RejectedBy).HasMaxLength(200);
             entity.Property(p => p.RejectionReason).HasMaxLength(2000);
 
+            entity.Property(p => p.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
             entity.OwnsOne(p => p.TargetTier, t =>
             {
                 t.Property(r => r.EstimatedMonthlyCostUsd).HasPrecision(18, 2);
@@ -170,6 +176,18 @@ public class ScaffoldDbContext : DbContext
                     v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                     v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>())
                 .Metadata.SetValueComparer(StringListComparer());
+        });
+    }
+
+    private static void ConfigureMigrationProgressRecord(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<MigrationProgressRecord>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Phase).HasMaxLength(100);
+            entity.Property(r => r.CurrentTable).HasMaxLength(500);
+            entity.Property(r => r.Message).HasMaxLength(2000);
+            entity.HasIndex(r => r.MigrationId);
         });
     }
 

@@ -67,6 +67,9 @@ public class MigrationController : ControllerBase
             await _projectRepository.UpdateAsync(project);
 
             var plan = project.MigrationPlan;
+            plan.Status = MigrationStatus.Running;
+            plan.MigrationId = migrationId;
+            await _dbContext.SaveChangesAsync(ct);
 
             // Pre-generate SQL for canned scripts that don't have content yet
             if (project.Assessment?.Schema is { } schema)
@@ -111,12 +114,17 @@ public class MigrationController : ControllerBase
                     result.Success = result.Success && validationSummary.AllPassed;
 
                     _dbContext.MigrationResults.Add(result);
+                    plan.Status = result.Success ? MigrationStatus.Completed : MigrationStatus.Failed;
+                    project.Status = result.Success ? ProjectStatus.MigrationComplete : ProjectStatus.Failed;
                     await _dbContext.SaveChangesAsync(CancellationToken.None);
 
                     await _progressService.MigrationCompleted(migrationId.ToString());
                 }
                 catch (Exception ex)
                 {
+                    plan.Status = MigrationStatus.Failed;
+                    project.Status = ProjectStatus.Failed;
+                    try { await _dbContext.SaveChangesAsync(CancellationToken.None); } catch { }
                     await _progressService.MigrationFailed(migrationId.ToString(), ex.Message);
                 }
             }, ct);
@@ -231,5 +239,19 @@ public class MigrationController : ControllerBase
         {
             return NotFound();
         }
+    }
+
+    /// <summary>
+    /// Get persisted progress records for a migration.
+    /// </summary>
+    [HttpGet("{migrationId:guid}/progress")]
+    public async Task<IActionResult> GetProgress(Guid projectId, Guid migrationId, CancellationToken ct)
+    {
+        var records = await _dbContext.MigrationProgressRecords
+            .Where(r => r.MigrationId == migrationId)
+            .OrderBy(r => r.Timestamp)
+            .ToListAsync(ct);
+
+        return Ok(records);
     }
 }

@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Scaffold.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Scaffold.Core\Scaffold.Core.csproj" />
     <ProjectReference Include="..\Scaffold.Assessment\Scaffold.Assessment.csproj" />
     <ProjectReference Include="..\Scaffold.Migration\Scaffold.Migration.csproj" />

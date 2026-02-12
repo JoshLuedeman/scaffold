@@ -66,7 +66,9 @@ public record MigrationPlanResponse(
     string? ApprovedBy,
     bool IsRejected,
     string? RejectedBy,
-    string? RejectionReason)
+    string? RejectionReason,
+    string Status,
+    Guid? MigrationId)
 {
 #pragma warning disable CS0618 // Obsolete members used for backward compat
     public static MigrationPlanResponse FromModel(MigrationPlan plan) =>
@@ -89,7 +91,9 @@ public record MigrationPlanResponse(
             plan.ApprovedBy,
             plan.IsRejected,
             plan.RejectedBy,
-            plan.RejectionReason);
+            plan.RejectionReason,
+            plan.Status.ToString(),
+            plan.MigrationId);
 #pragma warning restore CS0618
 }
 

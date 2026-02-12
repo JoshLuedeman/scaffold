@@ -27,6 +27,9 @@ public class MigrationPlan
     public string? ExistingTargetConnectionString { get; set; }
     public string? SourceConnectionString { get; set; }
 
+    public MigrationStatus Status { get; set; } = MigrationStatus.Pending;
+    public Guid? MigrationId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? TargetRegion { get; set; }
     public bool IsApproved { get; set; }

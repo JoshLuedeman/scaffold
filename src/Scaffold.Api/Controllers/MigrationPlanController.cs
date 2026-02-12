@@ -186,6 +186,12 @@ public class MigrationPlanController : ControllerBase
             project.MigrationPlan.IsRejected = false;
             project.MigrationPlan.RejectedBy = null;
             project.MigrationPlan.RejectionReason = null;
+
+            // If a schedule is set, mark as Scheduled so the background service picks it up
+            project.MigrationPlan.Status = project.MigrationPlan.ScheduledAt.HasValue
+                ? MigrationStatus.Scheduled
+                : MigrationStatus.Pending;
+
             await _dbContext.SaveChangesAsync(ct);
 
             return Ok(MigrationPlanResponse.FromModel(project.MigrationPlan));
