@@ -57,6 +57,11 @@ public class CompatibilityChecker
             issue.Severity = CompatibilityMatrix.GetSeverity(issue.IssueType, targetService);
             issue.DocUrl = CompatibilityMatrix.GetDocUrl(issue.IssueType, targetService);
             issue.IsBlocking = issue.Severity == CompatibilitySeverity.Unsupported;
+            // Replace the generic "Azure SQL Database" with the actual target service name
+            if (!string.IsNullOrEmpty(issue.Description))
+            {
+                issue.Description = issue.Description.Replace("Azure SQL Database", targetService);
+            }
         }
     }
 
