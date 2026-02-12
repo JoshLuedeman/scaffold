@@ -49,7 +49,7 @@ src/
   Scaffold.Migration/     # Migration engines (schema deploy, bulk copy, sync, validation)
   Scaffold.Infrastructure/# EF Core, repositories, Azure SDK
   Scaffold.Api/           # ASP.NET Core 8 Web API
-  Scaffold.Web/           # React 18 + Vite + Fluent UI v9
+  Scaffold.Web/           # React 19 + Vite + Fluent UI v9
 tests/
   Scaffold.Assessment.Tests/
   Scaffold.Api.Tests/

@@ -82,6 +82,8 @@ docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=YourStrong!Passw0rd" \
   -d mcr.microsoft.com/mssql/server:2025-latest
 ```
 
+Update the connection string in `src/Scaffold.Api/appsettings.Development.json` if you use a different password.
+
 ### 2. Run the API
 
 ```bash
@@ -89,7 +91,7 @@ cd src/Scaffold.Api
 dotnet run
 ```
 
-The API starts on http://localhost:5062 with authentication disabled for local development.
+The API starts on http://localhost:5062 with authentication disabled for local development. The database is created automatically on first run via EF Core migrations.
 
 ### 3. Run the Frontend
 
@@ -99,13 +101,16 @@ npm install
 npm run dev
 ```
 
-The frontend starts on http://localhost:5173 and proxies API requests to the backend.
+The frontend starts on http://localhost:5173 and proxies API requests to the backend automatically.
 
 ### 4. Run Tests
 
 ```bash
-dotnet test
+dotnet test                                         # All 211+ backend tests
+cd src/Scaffold.Web && npx tsc --noEmit             # Frontend type check
 ```
+
+> **Note:** Backend tests use an in-memory database — no SQL Server instance is required to run tests.
 
 ## Workflow
 
@@ -117,36 +122,121 @@ dotnet test
 
 ## Deploy to Azure
 
-The fastest way to deploy Scaffold to your Azure environment:
-
 ### Prerequisites
 
-- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
-- [Azure Developer CLI (azd)](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
-- An Azure subscription with permissions to create resources
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) — logged in (`az login`)
+- [Azure Developer CLI (azd)](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd) — logged in (`azd auth login`)
+- An Azure subscription with permissions to create resources (Contributor role or higher)
+- Permissions to create Entra ID App Registrations (or an existing one to provide)
 
-### One-Command Deployment
+### Step-by-Step Deployment
+
+#### 1. Start the deployment
 
 ```bash
 azd up
 ```
 
-This will:
+#### 2. Select your environment
 
-1. **Set up authentication** — If you don't have an Entra ID App Registration, the deployment will create one for you automatically. If you already have one, you can provide its Client ID instead.
-2. **Provision infrastructure** — Deploys Azure SQL Database, Container App, Static Web App, Key Vault, Container Registry, and Storage Account via Bicep.
-3. **Build and deploy** — Builds the API container and frontend, then deploys them to Azure.
-4. **Configure redirect URIs** — Automatically updates the App Registration with the deployed URLs.
+You'll be prompted to name your environment (e.g., `dev`, `staging`, `prod`). This name prefixes all Azure resources.
 
-### After Deployment
+```
+? Enter a new environment name: dev
+```
 
-If a new App Registration was created, an admin must grant API permissions:
+#### 3. Choose your Azure subscription and region
+
+Select the subscription and Azure region for deployment. Choose a region close to your users and source databases.
+
+```
+? Select an Azure Subscription to use: My Subscription (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+? Select an Azure location to use:     East US 2
+```
+
+#### 4. Configure authentication
+
+The deployment will ask if you have an existing Entra ID App Registration:
+
+**Option A — Create a new one (recommended for first-time setup):**
+```
+Do you have an existing Azure AD App Registration? (y/N): N
+Creating new App Registration: scaffold-dev...
+✓ App Registration created: <CLIENT_ID>
+✓ Service Principal created
+✓ SPA platform configured
+✓ Microsoft Graph User.Read permission added
+
+⚠ IMPORTANT: After deployment completes, an admin must grant API permissions:
+  az ad app permission admin-consent --id <CLIENT_ID>
+```
+
+**Option B — Use an existing one:**
+```
+Do you have an existing Azure AD App Registration? (y/N): y
+Enter the Application (Client) ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+Enter the Tenant ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+#### 5. Wait for provisioning
+
+Bicep deploys all infrastructure (~5-10 minutes):
+- Azure SQL Database (Basic tier)
+- Azure Container App (API)
+- Azure Static Web App (frontend)
+- Azure Container Registry (container images)
+- Azure Key Vault (secrets)
+- Azure Storage Account (migration artifacts)
+
+#### 6. Wait for build and deploy
+
+The CLI builds the API Docker container and frontend, then deploys both (~3-5 minutes).
+
+#### 7. Post-deployment
+
+The deployment automatically updates the App Registration with the correct redirect URIs. A summary is displayed:
+
+```
+═══════════════════════════════════════════
+  Scaffold Deployment Summary
+═══════════════════════════════════════════
+  Frontend URL: https://your-app.azurestaticapps.net
+  API URL:      https://your-api.azurecontainerapps.io
+  Client ID:    xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+═══════════════════════════════════════════
+```
+
+#### 8. Grant admin consent (new App Registration only)
+
+If a new App Registration was created, run:
 
 ```bash
 az ad app permission admin-consent --id <CLIENT_ID>
 ```
 
-The deployment summary will show the Client ID and provide the exact command to run.
+This grants the app permission to read user profiles. Without this step, users cannot sign in.
+
+### Updating an Existing Deployment
+
+To update code without re-provisioning infrastructure:
+
+```bash
+azd deploy
+```
+
+To update infrastructure and code:
+
+```bash
+azd up
+```
+
+### Tearing Down
+
+To remove all Azure resources:
+
+```bash
+azd down --purge
+```
 
 ### What Gets Deployed
 
@@ -174,6 +264,29 @@ The deployment summary will show the Client ID and provide the exact command to 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+
+## Troubleshooting
+
+### Docker Compose: API fails to start
+The API waits for SQL Server to be healthy before starting. If the health check fails, verify the SA password matches between the `db` and `api` services in `docker-compose.yml`.
+
+### Tests fail with "Failed to determine the https port for redirect"
+This is a harmless ASP.NET Core warning from the test host. It does not indicate a test failure — check the actual test results.
+
+### Frontend shows blank page / API calls fail (dev mode)
+Ensure the API is running on port 5062 before starting the frontend. Vite proxies `/api` requests to `http://localhost:5062`.
+
+### EF Core migration errors on startup
+The API auto-applies EF Core migrations on startup. If you see migration errors, ensure your SQL Server is running and the connection string in `appsettings.Development.json` is correct. You can also apply migrations manually:
+```bash
+dotnet ef database update --project src/Scaffold.Infrastructure --startup-project src/Scaffold.Api
+```
+
+### SignalR migration progress not updating
+Verify the API is reachable and the browser console doesn't show WebSocket connection errors. In Docker, ensure the nginx config includes WebSocket upgrade headers for the `/hubs/` path.
+
+### Azure deployment: "az ad app permission admin-consent" fails
+You need Azure AD admin permissions (Global Administrator or Privileged Role Administrator) to grant consent. Contact your Azure AD admin or have them run the command.
 
 ## License
 
