@@ -5,6 +5,15 @@ using Scaffold.Migration.SqlServer;
 
 namespace Scaffold.Migration.Tests;
 
+/// <summary>
+/// IProgress implementation that invokes the callback synchronously
+/// (unlike Progress&lt;T&gt; which posts to the synchronization context).
+/// </summary>
+internal class SynchronousProgress<T>(Action<T> handler) : IProgress<T>
+{
+    public void Report(T value) => handler(value);
+}
+
 public class SqlServerMigratorTests
 {
     private static MigrationPlan CreateValidPlan(params string[] tables) => new()
@@ -70,7 +79,7 @@ public class SqlServerMigratorTests
         var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object);
         var plan = CreateValidPlan();
         var phases = new List<string>();
-        var progress = new Progress<MigrationProgress>(p => phases.Add(p.Phase));
+        var progress = new SynchronousProgress<MigrationProgress>(p => phases.Add(p.Phase));
 
         await migrator.ExecuteCutoverAsync(plan, progress);
 
