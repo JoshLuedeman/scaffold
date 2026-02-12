@@ -54,8 +54,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalL,
   },
   card: {
-    backgroundColor: '#ffffff',
-    color: '#1a1a1a',
+    backgroundColor: tokens.colorNeutralBackground3,
     padding: tokens.spacingVerticalL,
     display: 'flex',
     flexDirection: 'column',
@@ -262,7 +261,7 @@ export default function ProjectList() {
                   icon={<OpenRegular />}
                   as="a"
                   href={`/projects/${p.id}`}
-                  style={{ color: '#1a1a1a', borderColor: '#999999' }}
+                  style={{ color: tokens.colorNeutralForeground1, borderColor: tokens.colorNeutralStroke1 }}
                 >
                   Open
                 </Button>
@@ -272,7 +271,7 @@ export default function ProjectList() {
                   icon={<DeleteRegular />}
                   aria-label={`Delete ${p.name}`}
                   onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-                  style={{ color: '#1a1a1a', borderColor: '#999999' }}
+                  style={{ color: tokens.colorNeutralForeground1, borderColor: tokens.colorNeutralStroke1 }}
                 />
               </div>
             </Card>
