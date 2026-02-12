@@ -1,0 +1,52 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SQLSERVER2025!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "SQLSERVER2025!" -C -Q "SELECT 1" -b
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - scaffold
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Scaffold.Api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Server=db;Database=Scaffold;User Id=sa;Password=SQLSERVER2025!;TrustServerCertificate=True"
+      # WARNING: DisableAuth is for local development only. Remove or set to "false" for production deployments.
+      DisableAuth: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - scaffold
+
+  web:
+    build:
+      context: .
+      dockerfile: src/Scaffold.Web/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - scaffold
+
+volumes:
+  sqldata:
+
+networks:
+  scaffold:

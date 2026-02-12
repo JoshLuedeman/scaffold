@@ -126,8 +126,15 @@ public class ScaffoldDbContext : DbContext
                     v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>())
                 .Metadata.SetValueComparer(StringListComparer());
 
-            entity.Property(p => p.PreMigrationScript).HasColumnType("nvarchar(max)");
-            entity.Property(p => p.PostMigrationScript).HasColumnType("nvarchar(max)");
+            entity.OwnsMany(p => p.PreMigrationScripts, s =>
+            {
+                s.ToJson("PreMigrationScriptsJson");
+            });
+            entity.OwnsMany(p => p.PostMigrationScripts, s =>
+            {
+                s.ToJson("PostMigrationScriptsJson");
+            });
+
             entity.Property(p => p.ExistingTargetConnectionString).HasMaxLength(1000);
             entity.Property(p => p.ApprovedBy).HasMaxLength(200);
             entity.Property(p => p.RejectedBy).HasMaxLength(200);

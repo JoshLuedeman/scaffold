@@ -29,21 +29,31 @@ function LoginPage() {
   );
 }
 
-function App({ msalInstance }: { msalInstance: PublicClientApplication }) {
+function AppRoutes() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<ProjectList />} />
+          <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/projects/:id/assess" element={<AssessmentWizard />} />
+          <Route path="/projects/:id/configure" element={<MigrationConfig />} />
+          <Route path="/projects/:id/execute" element={<MigrationExecution />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function App({ msalInstance }: { msalInstance: PublicClientApplication | null }) {
+  if (!msalInstance) {
+    return <AppRoutes />;
+  }
+
   return (
     <MsalProvider instance={msalInstance}>
       <AuthenticatedTemplate>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<ProjectList />} />
-              <Route path="/projects/:id" element={<ProjectDetail />} />
-              <Route path="/projects/:id/assess" element={<AssessmentWizard />} />
-              <Route path="/projects/:id/configure" element={<MigrationConfig />} />
-              <Route path="/projects/:id/execute" element={<MigrationExecution />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <AppRoutes />
       </AuthenticatedTemplate>
       <UnauthenticatedTemplate>
         <LoginPage />

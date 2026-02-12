@@ -33,12 +33,13 @@ public class SqlServerAssessorTests
         var report = new AssessmentReport
         {
             Performance = new PerformanceProfile { AvgCpuPercent = 5, AvgIoMbPerSecond = 0.5 },
-            DataProfile = new DataProfile { TotalSizeBytes = 1_073_741_824L }
+            DataProfile = new DataProfile { TotalSizeBytes = 1_073_741_824L },
+            CompatibilityScore = 100
         };
 
         var recommendation = await _assessor.RecommendTierAsync(report);
 
-        Assert.Equal("Basic", recommendation.ServiceTier);
+        Assert.Equal("Azure SQL Database", recommendation.ServiceTier);
     }
 
     [Fact]
@@ -47,12 +48,13 @@ public class SqlServerAssessorTests
         var report = new AssessmentReport
         {
             Performance = new PerformanceProfile { AvgCpuPercent = 50, AvgIoMbPerSecond = 50 },
-            DataProfile = new DataProfile { TotalSizeBytes = 2L * 1_073_741_824L * 1024 } // 2 TB
+            DataProfile = new DataProfile { TotalSizeBytes = 2L * 1_073_741_824L * 1024 }, // 2 TB
+            CompatibilityScore = 100
         };
 
         var recommendation = await _assessor.RecommendTierAsync(report);
 
-        Assert.Equal("Hyperscale", recommendation.ServiceTier);
+        Assert.Equal("Azure SQL Database Hyperscale", recommendation.ServiceTier);
     }
 
     [Fact]
@@ -61,7 +63,8 @@ public class SqlServerAssessorTests
         var report = new AssessmentReport
         {
             Performance = new PerformanceProfile(),
-            DataProfile = new DataProfile()
+            DataProfile = new DataProfile(),
+            CompatibilityScore = 100
         };
 
         var recommendation = await _assessor.RecommendTierAsync(report);
@@ -98,14 +101,14 @@ public class SqlServerAssessorTests
             CompatibilityIssues = [new CompatibilityIssue { IsBlocking = true }],
             CompatibilityScore = 80.0,
             Risk = RiskRating.High,
-            Recommendation = new TierRecommendation { ServiceTier = "GeneralPurpose" }
+            Recommendation = new TierRecommendation { ServiceTier = "Azure SQL Database" }
         };
 
         Assert.Equal(10, report.Schema.TableCount);
         Assert.Equal(45, report.Performance.AvgCpuPercent);
         Assert.Single(report.CompatibilityIssues);
         Assert.Equal(RiskRating.High, report.Risk);
-        Assert.Equal("GeneralPurpose", report.Recommendation.ServiceTier);
+        Assert.Equal("Azure SQL Database", report.Recommendation.ServiceTier);
     }
 
     // ── End-to-end orchestration (without DB) ───────────────────────
@@ -116,7 +119,8 @@ public class SqlServerAssessorTests
         var report = new AssessmentReport
         {
             Performance = new PerformanceProfile { AvgCpuPercent = 20, AvgIoMbPerSecond = 10 },
-            DataProfile = new DataProfile { TotalSizeBytes = 10L * 1_073_741_824L }
+            DataProfile = new DataProfile { TotalSizeBytes = 10L * 1_073_741_824L },
+            CompatibilityScore = 100
         };
 
         var rec = await _assessor.RecommendTierAsync(report);
@@ -143,6 +147,6 @@ public class SqlServerAssessorTests
         // Tier recommendation is based on perf/data, not compatibility
         var rec = await _assessor.RecommendTierAsync(report);
 
-        Assert.Equal("BusinessCritical", rec.ServiceTier);
+        Assert.Equal("Azure SQL Database", rec.ServiceTier);
     }
 }

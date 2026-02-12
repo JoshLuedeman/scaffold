@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Scaffold.Core.Models;
 
 public class ConnectionInfo
@@ -10,4 +12,35 @@ public class ConnectionInfo
     public string? Username { get; set; }
     public string? KeyVaultSecretUri { get; set; }
     public bool TrustServerCertificate { get; set; }
+
+    /// <summary>
+    /// Runtime-only password for local/dev use. Not persisted to the database.
+    /// When set, takes precedence over KeyVaultSecretUri.
+    /// </summary>
+    [NotMapped]
+    public string? Password { get; set; }
+
+    public string BuildConnectionString()
+    {
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
+        {
+            DataSource = Port == 1433 ? Server : $"{Server},{Port}",
+            InitialCatalog = Database,
+            TrustServerCertificate = TrustServerCertificate,
+            Encrypt = true
+        };
+
+        if (UseSqlAuthentication)
+        {
+            builder.UserID = Username;
+            builder.Password = Password;
+            builder.IntegratedSecurity = false;
+        }
+        else
+        {
+            builder.IntegratedSecurity = true;
+        }
+
+        return builder.ConnectionString;
+    }
 }

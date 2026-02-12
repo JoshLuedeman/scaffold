@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Scaffold.Api.Controllers;
 using Scaffold.Api.Tests.Infrastructure;
 using Scaffold.Core.Models;
@@ -8,6 +10,12 @@ namespace Scaffold.Api.Tests;
 
 public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     private readonly HttpClient _client;
 
     public ProjectControllerTests(CustomWebApplicationFactory factory)
@@ -21,7 +29,7 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.GetAsync("/api/projects");
 
         response.EnsureSuccessStatusCode();
-        var projects = await response.Content.ReadFromJsonAsync<List<MigrationProject>>();
+        var projects = await response.Content.ReadFromJsonAsync<List<MigrationProject>>(_jsonOptions);
         Assert.NotNull(projects);
     }
 
@@ -33,7 +41,7 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.PostAsJsonAsync("/api/projects", request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var project = await response.Content.ReadFromJsonAsync<MigrationProject>();
+        var project = await response.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
         Assert.NotNull(project);
         Assert.Equal("Test Project", project.Name);
         Assert.Equal("A test project", project.Description);
@@ -46,14 +54,14 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         // Arrange: create a project first
         var request = new CreateProjectRequest("GetById Project", "desc", null);
         var createResponse = await _client.PostAsJsonAsync("/api/projects", request);
-        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>();
+        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
 
         // Act
         var response = await _client.GetAsync($"/api/projects/{created!.Id}");
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var project = await response.Content.ReadFromJsonAsync<MigrationProject>();
+        var project = await response.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
         Assert.NotNull(project);
         Assert.Equal(created.Id, project.Id);
         Assert.Equal("GetById Project", project.Name);
@@ -73,7 +81,7 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         // Arrange
         var createRequest = new CreateProjectRequest("Original", "original desc", null);
         var createResponse = await _client.PostAsJsonAsync("/api/projects", createRequest);
-        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>();
+        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
 
         var updateRequest = new UpdateProjectRequest("Updated", "updated desc");
 
@@ -82,7 +90,7 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<MigrationProject>();
+        var updated = await response.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
         Assert.NotNull(updated);
         Assert.Equal("Updated", updated.Name);
         Assert.Equal("updated desc", updated.Description);
@@ -94,7 +102,7 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         // Arrange
         var request = new CreateProjectRequest("ToDelete", null, null);
         var createResponse = await _client.PostAsJsonAsync("/api/projects", request);
-        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>();
+        var created = await createResponse.Content.ReadFromJsonAsync<MigrationProject>(_jsonOptions);
 
         // Act
         var response = await _client.DeleteAsync($"/api/projects/{created!.Id}");

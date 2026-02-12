@@ -62,12 +62,18 @@ public class MigrationPlanController : ControllerBase
                 IncludedObjects = includedObjects,
                 ExcludedObjects = request.ExcludedObjects ?? [],
                 ScheduledAt = request.ScheduledAt,
-                PreMigrationScript = request.PreMigrationScript,
-                PostMigrationScript = request.PostMigrationScript,
+                PreMigrationScripts = MapScripts(request.PreMigrationScripts, request.PreMigrationScript, MigrationScriptPhase.Pre),
+                PostMigrationScripts = MapScripts(request.PostMigrationScripts, request.PostMigrationScript, MigrationScriptPhase.Post),
                 TargetTier = targetTier,
                 UseExistingTarget = request.UseExistingTarget,
                 ExistingTargetConnectionString = request.ExistingTargetConnectionString
             };
+
+            // Auto-populate source connection string from project's assessed connection
+            if (project.SourceConnection is not null && string.IsNullOrEmpty(plan.SourceConnectionString))
+            {
+                plan.SourceConnectionString = project.SourceConnection.BuildConnectionString();
+            }
 
             // Replace existing plan if present
             if (project.MigrationPlan is not null)
@@ -119,7 +125,11 @@ public class MigrationPlanController : ControllerBase
                 return NotFound("Migration plan not found.");
 
             if (project.MigrationPlan.IsApproved)
-                return BadRequest("Cannot update an approved migration plan.");
+            {
+                // Reset approval so the plan can be re-edited and re-approved
+                project.MigrationPlan.IsApproved = false;
+                project.MigrationPlan.ApprovedBy = null;
+            }
 
             var plan = project.MigrationPlan;
 
@@ -127,10 +137,12 @@ public class MigrationPlanController : ControllerBase
             if (request.IncludedObjects is not null) plan.IncludedObjects = request.IncludedObjects;
             if (request.ExcludedObjects is not null) plan.ExcludedObjects = request.ExcludedObjects;
             if (request.ScheduledAt.HasValue) plan.ScheduledAt = request.ScheduledAt;
-            if (request.PreMigrationScript is not null) plan.PreMigrationScript = request.PreMigrationScript;
-            if (request.PostMigrationScript is not null) plan.PostMigrationScript = request.PostMigrationScript;
+            if (request.PreMigrationScripts is not null || request.PreMigrationScript is not null)
+                plan.PreMigrationScripts = MapScripts(request.PreMigrationScripts, request.PreMigrationScript, MigrationScriptPhase.Pre);
+            if (request.PostMigrationScripts is not null || request.PostMigrationScript is not null)
+                plan.PostMigrationScripts = MapScripts(request.PostMigrationScripts, request.PostMigrationScript, MigrationScriptPhase.Post);
             if (request.UseExistingTarget.HasValue) plan.UseExistingTarget = request.UseExistingTarget.Value;
-            if (request.ExistingTargetConnectionString is not null) plan.ExistingTargetConnectionString = request.ExistingTargetConnectionString;
+            if (!string.IsNullOrEmpty(request.ExistingTargetConnectionString)) plan.ExistingTargetConnectionString = request.ExistingTargetConnectionString;
 
             if (request.TargetTierOverride is { } t)
             {
@@ -330,5 +342,41 @@ public class MigrationPlanController : ControllerBase
                 EstimatedMinutes: Math.Ceiling(sizeGb * 2)),
             _ => new TimelineEstimate("Unknown strategy.", 0)
         };
+    }
+
+    private static List<MigrationScript> MapScripts(List<MigrationScriptDto>? dtos, string? legacyScript, MigrationScriptPhase phase)
+    {
+        if (dtos is { Count: > 0 })
+        {
+            return dtos.Select(d => new MigrationScript
+            {
+                ScriptId = d.ScriptId,
+                Label = d.Label,
+                ScriptType = Enum.Parse<MigrationScriptType>(d.ScriptType),
+                Phase = Enum.Parse<MigrationScriptPhase>(d.Phase),
+                SqlContent = d.SqlContent,
+                IsEnabled = d.IsEnabled,
+                Order = d.Order
+            }).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(legacyScript))
+        {
+            return
+            [
+                new MigrationScript
+                {
+                    ScriptId = Guid.NewGuid().ToString(),
+                    Label = phase == MigrationScriptPhase.Pre ? "Pre-migration script" : "Post-migration script",
+                    ScriptType = MigrationScriptType.Custom,
+                    Phase = phase,
+                    SqlContent = legacyScript,
+                    IsEnabled = true,
+                    Order = 0
+                }
+            ];
+        }
+
+        return [];
     }
 }

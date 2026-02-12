@@ -27,5 +27,7 @@ Thumbs.db
 
 ## Secrets
 appsettings.Development.json
+.env
+.env.*
 *.pfx
 *.key

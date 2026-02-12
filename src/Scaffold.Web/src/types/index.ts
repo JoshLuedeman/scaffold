@@ -12,6 +12,8 @@ export type MigrationStrategy = 'Cutover' | 'ContinuousSync';
 
 export type RiskRating = 'Low' | 'Medium' | 'High';
 
+export type CompatibilitySeverity = 'Supported' | 'Partial' | 'Unsupported';
+
 export interface ConnectionInfo {
   id: string;
   server: string;
@@ -27,6 +29,8 @@ export interface SchemaObject {
   name: string;
   schema: string;
   objectType: string;
+  parentObjectName?: string;
+  subType?: string;
 }
 
 export interface SchemaInventory {
@@ -63,6 +67,14 @@ export interface CompatibilityIssue {
   issueType: string;
   description: string;
   isBlocking: boolean;
+  severity: CompatibilitySeverity;
+  docUrl?: string;
+}
+
+export interface RegionPricing {
+  armRegionName: string;
+  displayName: string;
+  estimatedMonthlyCostUsd: number;
 }
 
 export interface TierRecommendation {
@@ -73,6 +85,18 @@ export interface TierRecommendation {
   storageGb: number;
   estimatedMonthlyCostUsd: number;
   reasoning: string;
+  recommendedRegion?: string;
+  regionalPricing?: RegionPricing[];
+}
+
+export interface ServiceCompatibility {
+  service: string;
+  compatibilityScore: number;
+  risk: RiskRating;
+  unsupportedCount: number;
+  partialCount: number;
+  supportedCount: number;
+  totalIssues: number;
 }
 
 export interface AssessmentReport {
@@ -88,6 +112,19 @@ export interface AssessmentReport {
   risk: RiskRating;
 }
 
+export type MigrationScriptType = 'Canned' | 'Custom';
+export type MigrationScriptPhase = 'Pre' | 'Post';
+
+export interface MigrationScript {
+  scriptId: string;
+  label: string;
+  scriptType: MigrationScriptType;
+  phase: MigrationScriptPhase;
+  sqlContent: string;
+  isEnabled: boolean;
+  order: number;
+}
+
 export interface MigrationPlan {
   id: string;
   projectId: string;
@@ -97,9 +134,12 @@ export interface MigrationPlan {
   scheduledAt?: string;
   preMigrationScript?: string;
   postMigrationScript?: string;
+  preMigrationScripts: MigrationScript[];
+  postMigrationScripts: MigrationScript[];
   targetTier: TierRecommendation;
   useExistingTarget: boolean;
   existingTargetConnectionString?: string;
+  targetRegion?: string;
   createdAt: string;
   isApproved: boolean;
   approvedBy?: string;

@@ -3,6 +3,15 @@ using Scaffold.Core.Models;
 
 namespace Scaffold.Api.Dtos;
 
+public record MigrationScriptDto(
+    string ScriptId,
+    string Label,
+    string ScriptType,  // "Canned" or "Custom"
+    string Phase,       // "Pre" or "Post"
+    string SqlContent,
+    bool IsEnabled = true,
+    int Order = 0);
+
 public record CreateMigrationPlanRequest(
     MigrationStrategy Strategy,
     List<string>? IncludedObjects = null,
@@ -10,6 +19,8 @@ public record CreateMigrationPlanRequest(
     DateTime? ScheduledAt = null,
     string? PreMigrationScript = null,
     string? PostMigrationScript = null,
+    List<MigrationScriptDto>? PreMigrationScripts = null,
+    List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool UseExistingTarget = false,
     string? ExistingTargetConnectionString = null);
@@ -21,6 +32,8 @@ public record UpdateMigrationPlanRequest(
     DateTime? ScheduledAt = null,
     string? PreMigrationScript = null,
     string? PostMigrationScript = null,
+    List<MigrationScriptDto>? PreMigrationScripts = null,
+    List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool? UseExistingTarget = null,
     string? ExistingTargetConnectionString = null);
@@ -43,6 +56,8 @@ public record MigrationPlanResponse(
     DateTime? ScheduledAt,
     string? PreMigrationScript,
     string? PostMigrationScript,
+    List<MigrationScript> PreMigrationScripts,
+    List<MigrationScript> PostMigrationScripts,
     TierRecommendation TargetTier,
     bool UseExistingTarget,
     string? ExistingTargetConnectionString,
@@ -53,6 +68,7 @@ public record MigrationPlanResponse(
     string? RejectedBy,
     string? RejectionReason)
 {
+#pragma warning disable CS0618 // Obsolete members used for backward compat
     public static MigrationPlanResponse FromModel(MigrationPlan plan) =>
         new(
             plan.Id,
@@ -63,6 +79,8 @@ public record MigrationPlanResponse(
             plan.ScheduledAt,
             plan.PreMigrationScript,
             plan.PostMigrationScript,
+            plan.PreMigrationScripts,
+            plan.PostMigrationScripts,
             plan.TargetTier,
             plan.UseExistingTarget,
             plan.ExistingTargetConnectionString,
@@ -72,6 +90,7 @@ public record MigrationPlanResponse(
             plan.IsRejected,
             plan.RejectedBy,
             plan.RejectionReason);
+#pragma warning restore CS0618
 }
 
 public record RejectMigrationPlanRequest(string? Reason = null);

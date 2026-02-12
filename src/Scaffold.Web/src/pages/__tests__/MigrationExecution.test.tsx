@@ -27,6 +27,8 @@ const mockProject: MigrationProject = {
     createdAt: '2025-01-17T10:00:00Z',
     isApproved: true,
     approvedBy: 'admin@contoso.com',
+    preMigrationScripts: [],
+    postMigrationScripts: [],
   },
 };
 

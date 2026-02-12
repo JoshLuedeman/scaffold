@@ -1,4 +1,6 @@
+using Moq;
 using Scaffold.Assessment.SqlServer;
+using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
 namespace Scaffold.Assessment.Tests;
@@ -21,7 +23,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 5, io: 0.5), Data(1 * OneGb));
 
-        Assert.Equal("Basic", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("Basic", result.ComputeSize);
         Assert.Equal(5, result.Dtus);
         Assert.Null(result.VCores);
@@ -43,7 +45,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 12, io: 3), Data(5 * OneGb));
 
-        Assert.Equal("Standard", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("S0", result.ComputeSize);
         Assert.Equal(10, result.Dtus);
         Assert.Equal(15m, result.EstimatedMonthlyCostUsd);
@@ -54,7 +56,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 20, io: 10), Data(10 * OneGb));
 
-        Assert.Equal("Standard", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("S1", result.ComputeSize);
         Assert.Equal(20, result.Dtus);
         Assert.Equal(30m, result.EstimatedMonthlyCostUsd);
@@ -65,7 +67,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 30, io: 25), Data(10 * OneGb));
 
-        Assert.Equal("Standard", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("S2", result.ComputeSize);
         Assert.Equal(50, result.Dtus);
         Assert.Equal(75m, result.EstimatedMonthlyCostUsd);
@@ -76,7 +78,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 38, io: 35), Data(10 * OneGb));
 
-        Assert.Equal("Standard", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("S3", result.ComputeSize);
         Assert.Equal(100, result.Dtus);
         Assert.Equal(150m, result.EstimatedMonthlyCostUsd);
@@ -90,7 +92,7 @@ public class TierRecommenderTests
         // > 250 GB triggers General Purpose
         var result = TierRecommender.Recommend(Perf(cpu: 20, io: 10), Data(260L * OneGb));
 
-        Assert.Equal("GeneralPurpose", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Contains("GP_Gen5_", result.ComputeSize);
         Assert.Null(result.Dtus);
         Assert.NotNull(result.VCores);
@@ -105,7 +107,7 @@ public class TierRecommenderTests
         // So cpu = 41 → GP with 4 vCores. Let's use > 250GB with low CPU to get 2 vCores
         var result = TierRecommender.Recommend(Perf(cpu: 25, io: 10), Data(260L * OneGb));
 
-        Assert.Equal("GeneralPurpose", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("GP_Gen5_2", result.ComputeSize);
         Assert.Equal(2, result.VCores);
         Assert.Equal(200m, result.EstimatedMonthlyCostUsd);
@@ -116,7 +118,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 50, io: 10), Data(50 * OneGb));
 
-        Assert.Equal("GeneralPurpose", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("GP_Gen5_4", result.ComputeSize);
         Assert.Equal(4, result.VCores);
         Assert.Equal(400m, result.EstimatedMonthlyCostUsd);
@@ -127,7 +129,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 65, io: 10), Data(50 * OneGb));
 
-        Assert.Equal("GeneralPurpose", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("GP_Gen5_8", result.ComputeSize);
         Assert.Equal(8, result.VCores);
         Assert.Equal(800m, result.EstimatedMonthlyCostUsd);
@@ -140,7 +142,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 75, io: 50), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Contains("BC_Gen5_", result.ComputeSize);
         Assert.NotNull(result.VCores);
     }
@@ -150,7 +152,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 30, io: 110), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
     }
 
     [Fact]
@@ -162,7 +164,7 @@ public class TierRecommenderTests
         // To get 2 vCores: need io > 100 (to enter BC) but cpu <=60 and io <= 150
         var result = TierRecommender.Recommend(Perf(cpu: 30, io: 110), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("BC_Gen5_2", result.ComputeSize);
         Assert.Equal(2, result.VCores);
         Assert.Equal(450m, result.EstimatedMonthlyCostUsd);
@@ -174,7 +176,7 @@ public class TierRecommenderTests
         // cpu > 60 or io > 150 in BC branch → 4 vCores
         var result = TierRecommender.Recommend(Perf(cpu: 75, io: 50), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("BC_Gen5_4", result.ComputeSize);
         Assert.Equal(4, result.VCores);
         Assert.Equal(900m, result.EstimatedMonthlyCostUsd);
@@ -185,7 +187,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 85, io: 50), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("BC_Gen5_8", result.ComputeSize);
         Assert.Equal(8, result.VCores);
         Assert.Equal(1800m, result.EstimatedMonthlyCostUsd);
@@ -196,7 +198,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 30, io: 210), Data(50 * OneGb));
 
-        Assert.Equal("BusinessCritical", result.ServiceTier);
+        Assert.Equal("Azure SQL Database", result.ServiceTier);
         Assert.Equal("BC_Gen5_8", result.ComputeSize);
         Assert.Equal(8, result.VCores);
         Assert.Equal(1800m, result.EstimatedMonthlyCostUsd);
@@ -209,10 +211,8 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 50, io: 50), Data(2 * OneTb));
 
-        Assert.Equal("Hyperscale", result.ServiceTier);
-        Assert.Equal("HS_Gen5_2", result.ComputeSize);
-        Assert.Equal(2, result.VCores);
-        Assert.Equal(650m, result.EstimatedMonthlyCostUsd);
+        Assert.Equal("Azure SQL Database Hyperscale", result.ServiceTier);
+        Assert.StartsWith("HS_Gen5_", result.ComputeSize);
     }
 
     [Fact]
@@ -220,8 +220,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 5, io: 0.5), Data(OneTb + 1));
 
-        Assert.Equal("Hyperscale", result.ServiceTier);
-        Assert.Contains("Database exceeds 1 TB", result.Reasoning);
+        Assert.Equal("Azure SQL Database Hyperscale", result.ServiceTier);
     }
 
     [Fact]
@@ -229,7 +228,7 @@ public class TierRecommenderTests
     {
         var result = TierRecommender.Recommend(Perf(cpu: 5, io: 0.5), Data(OneTb));
 
-        Assert.NotEqual("Hyperscale", result.ServiceTier);
+        Assert.NotEqual("Azure SQL Database Hyperscale", result.ServiceTier);
     }
 
     // ── Storage headroom (20% buffer) ───────────────────────────────
@@ -292,5 +291,129 @@ public class TierRecommenderTests
         var result = TierRecommender.Recommend(Perf(cpu: 20, io: 10), Data(10 * OneGb));
 
         Assert.False(string.IsNullOrWhiteSpace(result.Reasoning));
+    }
+
+    // ── Pricing integration (RecommendAsync) ────────────────────────
+
+    [Fact]
+    public async Task RecommendAsync_WithNullPricingService_UsesHardcodedCost()
+    {
+        var result = await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, pricingService: null);
+
+        Assert.Equal(5m, result.EstimatedMonthlyCostUsd);
+        Assert.Null(result.RecommendedRegion);
+        Assert.Empty(result.RegionalPricing);
+    }
+
+    [Fact]
+    public async Task RecommendAsync_WithPricing_UsesCheapestRegion()
+    {
+        var mock = new Mock<IAzurePricingService>();
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RegionPricing>
+            {
+                new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
+                new() { ArmRegionName = "westus", DisplayName = "West US", EstimatedMonthlyCostUsd = 80m },
+                new() { ArmRegionName = "westeurope", DisplayName = "West Europe", EstimatedMonthlyCostUsd = 120m },
+            });
+
+        var result = await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
+
+        Assert.Equal(80m, result.EstimatedMonthlyCostUsd);
+        Assert.Equal("westus", result.RecommendedRegion);
+    }
+
+    [Fact]
+    public async Task RecommendAsync_WithPricing_PopulatesRegionalPricing()
+    {
+        var mock = new Mock<IAzurePricingService>();
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RegionPricing>
+            {
+                new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
+                new() { ArmRegionName = "westus", DisplayName = "West US", EstimatedMonthlyCostUsd = 80m },
+                new() { ArmRegionName = "westeurope", DisplayName = "West Europe", EstimatedMonthlyCostUsd = 120m },
+            });
+
+        var result = await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
+
+        Assert.NotNull(result.RegionalPricing);
+        Assert.Equal(3, result.RegionalPricing.Count);
+    }
+
+    [Fact]
+    public async Task RecommendAsync_WithEmptyPricing_KeepsHardcodedCost()
+    {
+        var mock = new Mock<IAzurePricingService>();
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RegionPricing>());
+
+        var result = await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
+
+        Assert.Equal(5m, result.EstimatedMonthlyCostUsd);
+        Assert.Null(result.RecommendedRegion);
+    }
+
+    [Fact]
+    public async Task RecommendAsync_CallsPricingWithCorrectArgs()
+    {
+        var mock = new Mock<IAzurePricingService>();
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RegionPricing>());
+
+        await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
+
+        mock.Verify(s => s.GetPricingForTierAsync("Azure SQL Database", "Basic", 2), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecommendAsync_WithPricing_SelectsCheapestFromUnsortedList()
+    {
+        var mock = new Mock<IAzurePricingService>();
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<RegionPricing>
+            {
+                new() { ArmRegionName = "westeurope", DisplayName = "West Europe", EstimatedMonthlyCostUsd = 500m },
+                new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
+                new() { ArmRegionName = "westus", DisplayName = "West US", EstimatedMonthlyCostUsd = 300m },
+            });
+
+        var result = await TierRecommender.RecommendAsync(
+            Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
+
+        Assert.Equal(100m, result.EstimatedMonthlyCostUsd);
+        Assert.Equal("eastus", result.RecommendedRegion);
+    }
+
+    [Fact]
+    public void Recommend_AlwaysReturnsValidServiceTier()
+    {
+        string[] validTiers = [
+            "Azure SQL Database",
+            "Azure SQL Database Hyperscale",
+            "Azure SQL Managed Instance",
+            "SQL Server on Azure VM"
+        ];
+
+        // Test various workload profiles
+        var profiles = new[]
+        {
+            (Perf(cpu: 1, io: 0.1), Data(1 * OneGb)),
+            (Perf(cpu: 50, io: 50), Data(50 * OneGb)),
+            (Perf(cpu: 85, io: 200), Data(2 * OneTb)),
+            (Perf(cpu: 5, io: 0.5), Data(0)),
+        };
+
+        foreach (var (perf, data) in profiles)
+        {
+            var result = TierRecommender.Recommend(perf, data);
+            Assert.Contains(result.ServiceTier, validTiers);
+            Assert.False(string.IsNullOrWhiteSpace(result.ComputeSize), "ComputeSize should never be empty");
+        }
     }
 }

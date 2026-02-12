@@ -20,7 +20,7 @@ public class SqlServerConnectionFactory
         if (info.UseSqlAuthentication)
         {
             builder.UserID = info.Username;
-            builder.Password = await ResolvePasswordAsync(info.KeyVaultSecretUri);
+            builder.Password = await ResolvePasswordAsync(info.Password, info.KeyVaultSecretUri);
             builder.IntegratedSecurity = false;
         }
         else
@@ -33,11 +33,15 @@ public class SqlServerConnectionFactory
         return connection;
     }
 
-    private static async Task<string> ResolvePasswordAsync(string? keyVaultSecretUri)
+    private static async Task<string> ResolvePasswordAsync(string? password, string? keyVaultSecretUri)
     {
+        // Use direct password if provided (local/dev scenarios)
+        if (!string.IsNullOrWhiteSpace(password))
+            return password;
+
         if (string.IsNullOrWhiteSpace(keyVaultSecretUri))
             throw new InvalidOperationException(
-                "KeyVaultSecretUri is required when using SQL authentication.");
+                "Either Password or KeyVaultSecretUri is required when using SQL authentication.");
 
         var secretUri = new Uri(keyVaultSecretUri);
         var client = new SecretClient(

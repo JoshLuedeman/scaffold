@@ -2,17 +2,116 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import type { PublicClientApplication } from '@azure/msal-browser';
+import {
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbDivider,
+  BreadcrumbButton,
+  Button,
+  Card,
+  MessageBar,
+  MessageBarBody,
+  ProgressBar,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableCell,
+  TableBody,
+  Text,
+  makeStyles,
+  tokens,
+} from '@fluentui/react-components';
+import {
+  CheckmarkCircleRegular,
+  DismissCircleRegular,
+} from '@fluentui/react-icons';
 import { api } from '../services/api';
 import { useMigrationProgress } from '../hooks/useMigrationProgress';
 import type { MigrationProject, MigrationResult, ValidationResult } from '../types';
-import './MigrationExecution.css';
+
+function useSafeMsal(): PublicClientApplication | null {
+  try {
+    const { instance } = useMsal();
+    return instance as PublicClientApplication;
+  } catch {
+    return null;
+  }
+}
+
+const useStyles = makeStyles({
+  root: {
+    maxWidth: '800px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalM,
+  },
+  card: {
+    padding: tokens.spacingVerticalL,
+  },
+  connectionRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+  },
+  statusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+    textTransform: 'capitalize' as const,
+  },
+  progressMeta: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalXL,
+    marginTop: tokens.spacingVerticalS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  logContainer: {
+    maxHeight: '260px',
+    overflowY: 'auto',
+    backgroundColor: tokens.colorNeutralBackground6,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: tokens.spacingVerticalS,
+    fontFamily: 'Consolas, "Courier New", monospace',
+    fontSize: tokens.fontSizeBase200,
+  },
+  logEntry: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalM,
+    paddingTop: '2px',
+    paddingBottom: '2px',
+  },
+  logTime: {
+    color: tokens.colorNeutralForeground4,
+    flexShrink: 0,
+  },
+  logMsg: {
+    color: tokens.colorNeutralForeground1,
+    wordBreak: 'break-word',
+  },
+});
 
 type MigrationStrategy = 'Cutover' | 'ContinuousSync';
 
+const connectionBadgeColor: Record<string, 'success' | 'warning' | 'danger' | 'informative'> = {
+  connected: 'success',
+  connecting: 'warning',
+  reconnecting: 'warning',
+  disconnected: 'danger',
+};
+
+const statusBadgeColor: Record<string, 'success' | 'danger' | 'informative' | 'brand'> = {
+  running: 'brand',
+  completed: 'success',
+  failed: 'danger',
+  idle: 'informative',
+};
+
 export default function MigrationExecution() {
   const { id } = useParams<{ id: string }>();
-  const { instance } = useMsal();
-  const msalInstance = instance as PublicClientApplication;
+  const msalInstance = useSafeMsal();
 
   const [project, setProject] = useState<MigrationProject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +126,7 @@ export default function MigrationExecution() {
     useMigrationProgress(migrationId, msalInstance);
 
   const logEndRef = useRef<HTMLDivElement>(null);
+  const styles = useStyles();
 
   const strategy: MigrationStrategy | undefined = project?.migrationPlan?.strategy;
 
@@ -56,8 +156,8 @@ export default function MigrationExecution() {
     setStarting(true);
     setError(null);
     try {
-      const res = await api.post<{ id: string }>(`/projects/${id}/migrations/start`, {});
-      setMigrationId(res.id);
+      const res = await api.post<{ migrationId: string }>(`/projects/${id}/migrations/start`, {});
+      setMigrationId(res.migrationId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to start migration');
     } finally {
@@ -94,148 +194,175 @@ export default function MigrationExecution() {
   }
 
   if (loading) return <p>Loading…</p>;
-  if (error && !migrationId) return <p className="feedback feedback-error">{error}</p>;
+  if (error && !migrationId) {
+    return (
+      <MessageBar intent="error">
+        <MessageBarBody>{error}</MessageBarBody>
+      </MessageBar>
+    );
+  }
   if (!project) return null;
 
   return (
-    <div className="migration-execution">
-      <nav className="breadcrumb">
-        <Link to="/">Projects</Link> <span>/</span>{' '}
-        <Link to={`/projects/${id}`}>Project {id}</Link> <span>/</span>{' '}
-        <span>Execute Migration</span>
-      </nav>
+    <div className={styles.root}>
+      <Breadcrumb>
+        <BreadcrumbItem>
+          <BreadcrumbButton as={Link as never} {...({ to: '/' } as object)}>Projects</BreadcrumbButton>
+        </BreadcrumbItem>
+        <BreadcrumbDivider />
+        <BreadcrumbItem>
+          <BreadcrumbButton as={Link as never} {...({ to: `/projects/${id}` } as object)}>
+            Project {id}
+          </BreadcrumbButton>
+        </BreadcrumbItem>
+        <BreadcrumbDivider />
+        <BreadcrumbItem>
+          <BreadcrumbButton current>Execute Migration</BreadcrumbButton>
+        </BreadcrumbItem>
+      </Breadcrumb>
 
-      <h2>Execute Migration</h2>
+      <Text as="h2" size={600} weight="semibold">Execute Migration</Text>
 
       {/* Start */}
       {!migrationId && (
-        <div className="exec-section">
-          <p>
-            Strategy: <strong>{strategy ?? 'N/A'}</strong>
-          </p>
-          <button className="btn-primary" onClick={startMigration} disabled={starting}>
+        <Card className={styles.card}>
+          <Text block>
+            Strategy: <Text weight="semibold">{strategy ?? 'N/A'}</Text>
+          </Text>
+          <Button appearance="primary" onClick={startMigration} disabled={starting}>
             {starting ? 'Starting…' : 'Start Migration'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {/* Connection indicator */}
       {migrationId && (
-        <div className="exec-connection">
-          <span className={`conn-dot conn-${connectionStatus}`} />
-          <span className="conn-label">{connectionStatus}</span>
+        <div className={styles.connectionRow}>
+          <Badge
+            appearance="filled"
+            color={connectionBadgeColor[connectionStatus] ?? 'informative'}
+            size="small"
+          />
+          <Text size={200}>{connectionStatus}</Text>
         </div>
       )}
 
       {/* Status indicator */}
       {migrationId && (
-        <div className={`exec-status exec-status-${migrationStatus}`}>
-          {migrationStatus === 'running' && <span className="status-icon pulse">●</span>}
-          {migrationStatus === 'completed' && <span className="status-icon">✓</span>}
-          {migrationStatus === 'failed' && <span className="status-icon">✕</span>}
-          {migrationStatus === 'idle' && <span className="status-icon">○</span>}
-          <span className="status-label">{migrationStatus}</span>
+        <div className={styles.statusRow}>
+          <Badge
+            appearance="filled"
+            color={statusBadgeColor[migrationStatus] ?? 'informative'}
+          >
+            {migrationStatus}
+          </Badge>
         </div>
       )}
 
       {/* Progress */}
       {progress && (
-        <div className="exec-section">
-          <h3>Progress</h3>
-          <div className="progress-phase">{progress.phase}</div>
-          <div className="progress-bar-track">
-            <div
-              className="progress-bar-fill"
-              style={{ width: `${progress.percentComplete}%` }}
-            />
-          </div>
-          <div className="progress-meta">
+        <Card className={styles.card}>
+          <Text weight="semibold" size={400}>Progress</Text>
+          <Text weight="semibold" size={200}>{progress.phase}</Text>
+          <ProgressBar value={progress.percentComplete / 100} />
+          <div className={styles.progressMeta}>
             <span>{progress.percentComplete}%</span>
             <span>Table: {progress.currentTable || '—'}</span>
             <span>Rows: {progress.rowsProcessed.toLocaleString()}</span>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Cutover button for continuous sync */}
       {strategy === 'ContinuousSync' && migrationStatus === 'running' && (
-        <div className="exec-section">
-          <button
-            className="btn-cutover"
+        <Card className={styles.card}>
+          <Button
+            appearance="primary"
             onClick={triggerCutover}
             disabled={cutoverPending}
           >
             {cutoverPending ? 'Triggering Cutover…' : 'Trigger Cutover'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {/* Message log */}
       {migrationId && (
-        <div className="exec-section">
-          <h3>Log</h3>
-          <div className="exec-log">
+        <Card className={styles.card}>
+          <Text weight="semibold" size={400}>Log</Text>
+          <div className={styles.logContainer}>
             {log.map((entry, i) => (
-              <div key={i} className="log-entry">
-                <span className="log-time">
+              <div key={i} className={styles.logEntry}>
+                <span className={styles.logTime}>
                   {entry.timestamp.toLocaleTimeString()}
                 </span>
-                <span className="log-msg">{entry.message}</span>
+                <span className={styles.logMsg}>{entry.message}</span>
               </div>
             ))}
             <div ref={logEndRef} />
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Error display */}
       {error && migrationId && (
-        <p className="feedback feedback-error">{error}</p>
+        <MessageBar intent="error">
+          <MessageBarBody>{error}</MessageBarBody>
+        </MessageBar>
       )}
 
       {/* Validation */}
       {migrationStatus === 'completed' && !result && (
-        <div className="exec-section">
-          <button className="btn-primary" onClick={runValidation} disabled={validating}>
+        <Card className={styles.card}>
+          <Button appearance="primary" onClick={runValidation} disabled={validating}>
             {validating ? 'Validating…' : 'Run Validation'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {/* Validation results */}
       {result && (
-        <div className="exec-section">
-          <h3>Validation Results</h3>
-          <p className={`validation-summary ${result.success ? 'validation-pass' : 'validation-fail'}`}>
-            {result.success ? 'All validations passed' : 'Some validations failed'}
-          </p>
-          <table className="validation-table">
-            <thead>
-              <tr>
-                <th>Table</th>
-                <th>Source Rows</th>
-                <th>Target Rows</th>
-                <th>Checksum</th>
-                <th>Result</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card className={styles.card}>
+          <Text weight="semibold" size={400}>Validation Results</Text>
+          <MessageBar intent={result.success ? 'success' : 'error'}>
+            <MessageBarBody>
+              {result.success ? 'All validations passed' : 'Some validations failed'}
+            </MessageBarBody>
+          </MessageBar>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Table</TableHeaderCell>
+                <TableHeaderCell>Source Rows</TableHeaderCell>
+                <TableHeaderCell>Target Rows</TableHeaderCell>
+                <TableHeaderCell>Checksum</TableHeaderCell>
+                <TableHeaderCell>Result</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {result.validations.map((v: ValidationResult) => (
-                <tr key={v.tableName} className={v.passed ? 'row-pass' : 'row-fail'}>
-                  <td>{v.tableName}</td>
-                  <td>{v.sourceRowCount.toLocaleString()}</td>
-                  <td>{v.targetRowCount.toLocaleString()}</td>
-                  <td>{v.checksumMatch ? '✓' : '✕'}</td>
-                  <td>
-                    <span className={`badge ${v.passed ? 'badge-pass' : 'badge-fail'}`}>
+                <TableRow key={v.tableName}>
+                  <TableCell>{v.tableName}</TableCell>
+                  <TableCell>{v.sourceRowCount.toLocaleString()}</TableCell>
+                  <TableCell>{v.targetRowCount.toLocaleString()}</TableCell>
+                  <TableCell>
+                    {v.checksumMatch
+                      ? <CheckmarkCircleRegular style={{ color: tokens.colorPaletteGreenForeground1 }} />
+                      : <DismissCircleRegular style={{ color: tokens.colorPaletteRedForeground1 }} />}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      appearance="filled"
+                      color={v.passed ? 'success' : 'danger'}
+                    >
                       {v.passed ? 'Pass' : 'Fail'}
-                    </span>
-                  </td>
-                </tr>
+                    </Badge>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

@@ -11,7 +11,7 @@ public static class DataProfiler
             SELECT
                 s.name       AS SchemaName,
                 t.name       AS TableName,
-                p.rows       AS RowCount,
+                p.rows       AS [RowCount],
                 SUM(a.total_pages) * 8 * 1024 AS SizeBytes
             FROM sys.tables t
             JOIN sys.schemas s          ON t.schema_id  = s.schema_id

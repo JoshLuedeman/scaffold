@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
 namespace Scaffold.Assessment.SqlServer;
@@ -8,11 +9,16 @@ public class SqlServerAssessor : Core.Interfaces.IAssessmentEngine
 {
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly ILogger<SqlServerAssessor> _logger;
+    private readonly IAzurePricingService? _pricingService;
 
-    public SqlServerAssessor(SqlServerConnectionFactory connectionFactory, ILogger<SqlServerAssessor> logger)
+    public SqlServerAssessor(
+        SqlServerConnectionFactory connectionFactory,
+        ILogger<SqlServerAssessor> logger,
+        IAzurePricingService? pricingService = null)
     {
         _connectionFactory = connectionFactory;
         _logger = logger;
+        _pricingService = pricingService;
     }
 
     public string SourcePlatform => "SqlServer";
@@ -60,6 +66,8 @@ public class SqlServerAssessor : Core.Interfaces.IAssessmentEngine
             source.Server, source.Database);
         var compatibilityChecker = new CompatibilityChecker(connection);
         var compatibilityIssues = await compatibilityChecker.CheckAsync(ct);
+
+        // Initial score before recommendation (uses raw issues without target-specific severity)
         var compatibilityScore = CompatibilityChecker.CalculateCompatibilityScore(compatibilityIssues);
         var risk = CompatibilityChecker.DetermineRisk(compatibilityIssues, compatibilityScore);
 
@@ -81,6 +89,12 @@ public class SqlServerAssessor : Core.Interfaces.IAssessmentEngine
         _logger.LogInformation("Generating tier recommendation for {Server}/{Database}",
             source.Server, source.Database);
         report.Recommendation = await RecommendTierAsync(report);
+
+        // Re-apply severity using the recommended service tier
+        CompatibilityChecker.ApplyTargetSeverity(compatibilityIssues, report.Recommendation.ServiceTier);
+        report.CompatibilityScore = CompatibilityChecker.CalculateCompatibilityScore(compatibilityIssues);
+        report.Risk = CompatibilityChecker.DetermineRisk(compatibilityIssues, report.CompatibilityScore);
+
         _logger.LogInformation("Recommended tier: {Tier} ({Compute}), estimated cost ${Cost}/mo",
             report.Recommendation.ServiceTier, report.Recommendation.ComputeSize,
             report.Recommendation.EstimatedMonthlyCostUsd);
@@ -88,9 +102,10 @@ public class SqlServerAssessor : Core.Interfaces.IAssessmentEngine
         return report;
     }
 
-    public Task<TierRecommendation> RecommendTierAsync(AssessmentReport report)
+    public async Task<TierRecommendation> RecommendTierAsync(AssessmentReport report)
     {
-        var recommendation = TierRecommender.Recommend(report.Performance, report.DataProfile);
-        return Task.FromResult(recommendation);
+        return await TierRecommender.RecommendAsync(
+            report.Performance, report.DataProfile, report.CompatibilityScore,
+            report.CompatibilityIssues, _pricingService);
     }
 }

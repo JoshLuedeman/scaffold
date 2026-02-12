@@ -1,5 +1,130 @@
-import type { AssessmentReport as Report } from '../types';
-import './AssessmentReport.css';
+import { useState, useEffect } from 'react';
+import type { AssessmentReport as Report, RiskRating, CompatibilitySeverity, ServiceCompatibility, CompatibilityIssue } from '../types';
+import { api } from '../services/api';
+import {
+  Card,
+  CardHeader,
+  Text,
+  Badge,
+  Table,
+  TableHeader,
+  TableRow,
+  TableCell,
+  TableBody,
+  TableHeaderCell,
+  makeStyles,
+  tokens,
+  Divider,
+} from '@fluentui/react-components';
+import {
+  DatabaseRegular,
+  TableRegular,
+  GaugeRegular,
+  ShieldCheckmarkRegular,
+  ArrowTrendingRegular,
+} from '@fluentui/react-icons';
+import type { ReactNode } from 'react';
+
+const riskColor: Record<RiskRating, 'success' | 'warning' | 'danger'> = {
+  Low: 'success',
+  Medium: 'warning',
+  High: 'danger',
+};
+
+const severityColor: Record<CompatibilitySeverity, 'success' | 'warning' | 'danger'> = {
+  Supported: 'success',
+  Partial: 'warning',
+  Unsupported: 'danger',
+};
+
+const severityLabel: Record<CompatibilitySeverity, string> = {
+  Supported: 'Supported',
+  Partial: 'Partial Support',
+  Unsupported: 'Unsupported',
+};
+
+const severityOrder: Record<CompatibilitySeverity, number> = {
+  Unsupported: 0,
+  Partial: 1,
+  Supported: 2,
+};
+
+const useStyles = makeStyles({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalL,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: tokens.spacingHorizontalM,
+  },
+  metricCard: {
+    padding: tokens.spacingVerticalM,
+  },
+  metricIcon: {
+    fontSize: '20px',
+    color: tokens.colorBrandForeground1,
+    marginBottom: tokens.spacingVerticalXS,
+  },
+  metricLabel: {
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  metricValue: {
+    marginTop: tokens.spacingVerticalXS,
+  },
+  recommendationCard: {
+    padding: tokens.spacingVerticalL,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  recommendationGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL}`,
+    marginTop: tokens.spacingVerticalM,
+  },
+  detailLabel: {
+    color: tokens.colorNeutralForeground3,
+  },
+  reasoning: {
+    marginTop: tokens.spacingVerticalM,
+    fontStyle: 'italic',
+    color: tokens.colorNeutralForeground3,
+  },
+  noIssues: {
+    padding: tokens.spacingVerticalM,
+    backgroundColor: tokens.colorPaletteGreenBackground1,
+    borderRadius: tokens.borderRadiusMedium,
+    color: tokens.colorPaletteGreenForeground1,
+  },
+  docLink: {
+    marginLeft: tokens.spacingHorizontalXS,
+    fontSize: tokens.fontSizeBase200,
+  },
+  serviceTable: {
+    marginBottom: tokens.spacingVerticalM,
+  },
+  serviceRow: {
+    cursor: 'pointer',
+    '&:hover': {
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
+  },
+  serviceRowSelected: {
+    cursor: 'pointer',
+    backgroundColor: tokens.colorBrandBackground2,
+    '&:hover': {
+      backgroundColor: tokens.colorBrandBackground2Hover,
+    },
+  },
+  recommended: {
+    fontSize: tokens.fontSizeBase200,
+    marginLeft: tokens.spacingHorizontalXS,
+  },
+});
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -8,122 +133,211 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export default function AssessmentReport({ report }: { report: Report }) {
+function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+  const styles = useStyles();
+  return (
+    <Card className={styles.metricCard}>
+      <div className={styles.metricIcon}>{icon}</div>
+      <Text size={200} weight="regular" className={styles.metricLabel}>{label}</Text>
+      <Text size={500} weight="bold" className={styles.metricValue} block>{value}</Text>
+    </Card>
+  );
+}
+
+export default function AssessmentReport({ report, projectId }: { report: Report; projectId: string }) {
+  const styles = useStyles();
   const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk } = report;
-  const blockingCount = compatibilityIssues.filter((i) => i.isBlocking).length;
+  const [serviceSummaries, setServiceSummaries] = useState<ServiceCompatibility[]>([]);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [filteredIssues, setFilteredIssues] = useState<CompatibilityIssue[]>([]);
+
+  useEffect(() => {
+    api.get<ServiceCompatibility[]>(`/projects/${projectId}/assessments/compatibility-summary`)
+      .then((data) => setServiceSummaries(data))
+      .catch(() => setServiceSummaries([]));
+  }, [projectId, report.id]);
+
+  useEffect(() => {
+    if (!selectedService) {
+      setFilteredIssues([...compatibilityIssues].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]));
+      return;
+    }
+    api.post<{ compatibilityIssues: CompatibilityIssue[] }>(`/projects/${projectId}/assessments/evaluate-target`, { targetService: selectedService })
+      .then((data) => {
+        const issues = data.compatibilityIssues
+          .filter((i) => i.severity !== 'Supported')
+          .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+        setFilteredIssues(issues);
+      })
+      .catch(() => {});
+  }, [selectedService, projectId, compatibilityIssues]);
+
+  const displayIssues = filteredIssues;
+  const unsupportedCount = displayIssues.filter((i) => i.severity === 'Unsupported').length;
 
   return (
-    <div className="assessment-report">
-      <div className="report-summary">
-        <div className="metric-card">
-          <div className="label">Tables</div>
-          <div className="value">{schema.tableCount}</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Views</div>
-          <div className="value">{schema.viewCount}</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Stored Procs</div>
-          <div className="value">{schema.storedProcedureCount}</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Total Rows</div>
-          <div className="value">{dataProfile.totalRowCount.toLocaleString()}</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Total Size</div>
-          <div className="value">{formatBytes(dataProfile.totalSizeBytes)}</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Compatibility</div>
-          <div className="value">{compatibilityScore}%</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Risk</div>
-          <div className="value">
-            <span className={`risk-badge risk-${risk.toLowerCase()}`}>{risk}</span>
-          </div>
-        </div>
+    <div className={styles.root}>
+      {/* Summary Metrics */}
+      <div className={styles.grid}>
+        <MetricCard icon={<TableRegular />} label="Tables" value={schema.tableCount} />
+        <MetricCard icon={<TableRegular />} label="Views" value={schema.viewCount} />
+        <MetricCard icon={<DatabaseRegular />} label="Stored Procs" value={schema.storedProcedureCount} />
+        <MetricCard icon={<DatabaseRegular />} label="Total Rows" value={dataProfile.totalRowCount.toLocaleString()} />
+        <MetricCard icon={<DatabaseRegular />} label="Total Size" value={formatBytes(dataProfile.totalSizeBytes)} />
+        <MetricCard icon={<ShieldCheckmarkRegular />} label="Compatibility" value={`${compatibilityScore}%`} />
+        <MetricCard
+          icon={<ArrowTrendingRegular />}
+          label="Risk"
+          value={<Badge appearance="filled" color={riskColor[risk]}>{risk}</Badge>}
+        />
       </div>
 
-      <h3 className="section-heading">Performance Profile</h3>
-      <div className="report-summary">
-        <div className="metric-card">
-          <div className="label">Avg CPU</div>
-          <div className="value">{performance.avgCpuPercent.toFixed(1)}%</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Memory Used</div>
-          <div className="value">{performance.memoryUsedMb} MB</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Avg I/O</div>
-          <div className="value">{performance.avgIoMbPerSecond.toFixed(1)} MB/s</div>
-        </div>
-        <div className="metric-card">
-          <div className="label">Max DB Size</div>
-          <div className="value">{performance.maxDatabaseSizeMb} MB</div>
-        </div>
+      {/* Performance Profile */}
+      <Divider />
+      <Text size={400} weight="semibold">Performance Profile</Text>
+      <div className={styles.grid}>
+        <MetricCard icon={<GaugeRegular />} label="Avg CPU" value={`${performance.avgCpuPercent.toFixed(1)}%`} />
+        <MetricCard icon={<GaugeRegular />} label="Memory Used" value={`${(performance.memoryUsedMb / 1024).toFixed(2)} GB`} />
+        <MetricCard icon={<GaugeRegular />} label="Avg I/O" value={`${performance.avgIoMbPerSecond.toFixed(1)} MB/s`} />
+        <MetricCard icon={<GaugeRegular />} label="Max DB Size" value={`${performance.maxDatabaseSizeMb} MB`} />
       </div>
 
-      <h3 className="section-heading">Tier Recommendation</h3>
-      <div className="recommendation-card">
-        <h4>{recommendation.serviceTier} — {recommendation.computeSize}</h4>
-        <dl className="recommendation-details">
+      {/* Tier Recommendation */}
+      <Divider />
+      <Text size={400} weight="semibold">Tier Recommendation</Text>
+      <Card className={styles.recommendationCard}>
+        <CardHeader
+          header={<Text weight="semibold">{recommendation.serviceTier || 'Not Available'} — {recommendation.computeSize || 'N/A'}</Text>}
+        />
+        <div className={styles.recommendationGrid}>
           {recommendation.vCores != null && (
-            <>
-              <dt>vCores</dt>
-              <dd>{recommendation.vCores}</dd>
-            </>
+            <div>
+              <Text size={200} className={styles.detailLabel} block>vCores</Text>
+              <Text weight="semibold">{recommendation.vCores}</Text>
+            </div>
           )}
           {recommendation.dtus != null && (
-            <>
-              <dt>DTUs</dt>
-              <dd>{recommendation.dtus}</dd>
-            </>
+            <div>
+              <Text size={200} className={styles.detailLabel} block>DTUs</Text>
+              <Text weight="semibold">{recommendation.dtus}</Text>
+            </div>
           )}
-          <dt>Storage</dt>
-          <dd>{recommendation.storageGb} GB</dd>
-          <dt>Est. Monthly Cost</dt>
-          <dd>${recommendation.estimatedMonthlyCostUsd.toFixed(2)}</dd>
-        </dl>
+          <div>
+            <Text size={200} className={styles.detailLabel} block>Storage</Text>
+            <Text weight="semibold">{recommendation.storageGb} GB</Text>
+          </div>
+          <div>
+            <Text size={200} className={styles.detailLabel} block>Est. Monthly Cost</Text>
+            <Text weight="semibold">${recommendation.estimatedMonthlyCostUsd.toFixed(2)}</Text>
+          </div>
+        </div>
         {recommendation.reasoning && (
-          <p className="recommendation-reasoning">{recommendation.reasoning}</p>
+          <Text size={300} className={styles.reasoning} block>{recommendation.reasoning}</Text>
         )}
-      </div>
+      </Card>
 
-      <h3 className="section-heading">
-        Compatibility Issues ({compatibilityIssues.length})
-        {blockingCount > 0 && <span className="severity-blocking"> — {blockingCount} blocking</span>}
-      </h3>
-      {compatibilityIssues.length === 0 ? (
-        <p className="no-issues">No compatibility issues found.</p>
-      ) : (
-        <table className="issues-table">
-          <thead>
-            <tr>
-              <th>Object</th>
-              <th>Type</th>
-              <th>Description</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {compatibilityIssues.map((issue, i) => (
-              <tr key={i}>
-                <td>{issue.objectName}</td>
-                <td>{issue.issueType}</td>
-                <td>{issue.description}</td>
-                <td>
-                  <span className={issue.isBlocking ? 'severity-blocking' : 'severity-nonblocking'}>
-                    {issue.isBlocking ? 'Blocking' : 'Non-blocking'}
-                  </span>
-                </td>
-              </tr>
+      {/* Service Compatibility */}
+      <Divider />
+      <Text size={400} weight="semibold">Service Compatibility</Text>
+      {serviceSummaries.length > 0 && (
+        <Table className={styles.serviceTable}>
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Azure Service</TableHeaderCell>
+              <TableHeaderCell>Compatibility</TableHeaderCell>
+              <TableHeaderCell>Risk</TableHeaderCell>
+              <TableHeaderCell>Unsupported</TableHeaderCell>
+              <TableHeaderCell>Partial</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {serviceSummaries.map((s) => (
+              <TableRow
+                key={s.service}
+                className={selectedService === s.service ? styles.serviceRowSelected : styles.serviceRow}
+                onClick={() => setSelectedService(selectedService === s.service ? null : s.service)}
+              >
+                <TableCell>
+                  <Text weight={selectedService === s.service ? 'bold' : 'regular'}>
+                    {s.service}
+                  </Text>
+                  {s.service === recommendation.serviceTier && (
+                    <Badge appearance="filled" color="brand" className={styles.recommended}>Recommended</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Text weight="semibold">{s.compatibilityScore}%</Text>
+                </TableCell>
+                <TableCell>
+                  <Badge appearance="filled" color={riskColor[s.risk]}>{s.risk}</Badge>
+                </TableCell>
+                <TableCell>
+                  {s.unsupportedCount > 0 ? (
+                    <Badge appearance="filled" color="danger">{s.unsupportedCount}</Badge>
+                  ) : (
+                    <Text size={300}>0</Text>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {s.partialCount > 0 ? (
+                    <Badge appearance="filled" color="warning">{s.partialCount}</Badge>
+                  ) : (
+                    <Text size={300}>0</Text>
+                  )}
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Compatibility Issues */}
+      <Divider />
+      <Text size={400} weight="semibold">
+        Compatibility Issues
+        {selectedService ? (
+          <Text size={400} weight="semibold"> — {selectedService} ({displayIssues.length} issues)</Text>
+        ) : (
+          <Text size={400} weight="semibold"> ({compatibilityIssues.length})</Text>
+        )}
+        {unsupportedCount > 0 && <Text size={400} weight="semibold" style={{ color: tokens.colorPaletteRedForeground1 }}> — {unsupportedCount} unsupported</Text>}
+      </Text>
+      {displayIssues.length === 0 ? (
+        <Text className={styles.noIssues}>
+          {selectedService ? `No compatibility issues for ${selectedService}.` : 'No compatibility issues found.'}
+        </Text>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Object</TableHeaderCell>
+              <TableHeaderCell>Type</TableHeaderCell>
+              <TableHeaderCell>Description</TableHeaderCell>
+              <TableHeaderCell>Severity</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayIssues.map((issue, i) => (
+              <TableRow key={i}>
+                <TableCell>{issue.objectName}</TableCell>
+                <TableCell>{issue.issueType}</TableCell>
+                <TableCell>
+                  {issue.description}
+                  {issue.docUrl && (
+                    <a href={issue.docUrl} target="_blank" rel="noopener noreferrer" className={styles.docLink}>
+                      Learn more
+                    </a>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge appearance="filled" color={severityColor[issue.severity]}>
+                    {severityLabel[issue.severity]}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   );

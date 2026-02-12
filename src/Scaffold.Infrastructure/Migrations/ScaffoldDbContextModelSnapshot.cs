@@ -123,22 +123,33 @@ namespace Scaffold.Infrastructure.Migrations
                     b.Property<bool>("IsApproved")
                         .HasColumnType("bit");
 
-                    b.Property<string>("PostMigrationScript")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PreMigrationScript")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<bool>("IsRejected")
+                        .HasColumnType("bit");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("RejectedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<DateTime?>("ScheduledAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("SourceConnectionString")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Strategy")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TargetRegion")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("UseExistingTarget")
                         .HasColumnType("bit");
@@ -250,6 +261,9 @@ namespace Scaffold.Infrastructure.Migrations
                                 .IsRequired()
                                 .HasColumnType("nvarchar(max)");
 
+                            b1.Property<string>("RecommendedRegion")
+                                .HasColumnType("nvarchar(max)");
+
                             b1.Property<string>("ServiceTier")
                                 .IsRequired()
                                 .HasColumnType("nvarchar(max)");
@@ -283,6 +297,9 @@ namespace Scaffold.Infrastructure.Migrations
                                 .IsRequired()
                                 .HasColumnType("nvarchar(max)");
 
+                            b1.Property<string>("DocUrl")
+                                .HasColumnType("nvarchar(max)");
+
                             b1.Property<bool>("IsBlocking")
                                 .HasColumnType("bit");
 
@@ -293,6 +310,9 @@ namespace Scaffold.Infrastructure.Migrations
                             b1.Property<string>("ObjectName")
                                 .IsRequired()
                                 .HasColumnType("nvarchar(max)");
+
+                            b1.Property<int>("Severity")
+                                .HasColumnType("int");
 
                             b1.HasKey("AssessmentReportId", "Id");
 
@@ -431,8 +451,14 @@ namespace Scaffold.Infrastructure.Migrations
                                         .IsRequired()
                                         .HasColumnType("nvarchar(max)");
 
+                                    b2.Property<string>("ParentObjectName")
+                                        .HasColumnType("nvarchar(max)");
+
                                     b2.Property<string>("Schema")
                                         .IsRequired()
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<string>("SubType")
                                         .HasColumnType("nvarchar(max)");
 
                                     b2.HasKey("SchemaInventoryAssessmentReportId", "Id");
@@ -477,6 +503,92 @@ namespace Scaffold.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.OwnsMany("Scaffold.Core.Models.MigrationScript", "PostMigrationScripts", b1 =>
+                        {
+                            b1.Property<Guid>("MigrationPlanId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            b1.Property<bool>("IsEnabled")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("Label")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<int>("Order")
+                                .HasColumnType("int");
+
+                            b1.Property<int>("Phase")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("ScriptId")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<int>("ScriptType")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("SqlContent")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("MigrationPlanId", "Id");
+
+                            b1.ToTable("MigrationPlans");
+
+                            b1.ToJson("PostMigrationScriptsJson");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MigrationPlanId");
+                        });
+
+                    b.OwnsMany("Scaffold.Core.Models.MigrationScript", "PreMigrationScripts", b1 =>
+                        {
+                            b1.Property<Guid>("MigrationPlanId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            b1.Property<bool>("IsEnabled")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("Label")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<int>("Order")
+                                .HasColumnType("int");
+
+                            b1.Property<int>("Phase")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("ScriptId")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<int>("ScriptType")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("SqlContent")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("MigrationPlanId", "Id");
+
+                            b1.ToTable("MigrationPlans");
+
+                            b1.ToJson("PreMigrationScriptsJson");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MigrationPlanId");
+                        });
+
                     b.OwnsOne("Scaffold.Core.Models.TierRecommendation", "TargetTier", b1 =>
                         {
                             b1.Property<Guid>("MigrationPlanId")
@@ -495,6 +607,9 @@ namespace Scaffold.Infrastructure.Migrations
 
                             b1.Property<string>("Reasoning")
                                 .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<string>("RecommendedRegion")
                                 .HasColumnType("nvarchar(max)");
 
                             b1.Property<string>("ServiceTier")
@@ -516,6 +631,10 @@ namespace Scaffold.Infrastructure.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("MigrationPlanId");
                         });
+
+                    b.Navigation("PostMigrationScripts");
+
+                    b.Navigation("PreMigrationScripts");
 
                     b.Navigation("TargetTier")
                         .IsRequired();

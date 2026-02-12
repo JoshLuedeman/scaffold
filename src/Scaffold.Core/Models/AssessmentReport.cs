@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
@@ -33,6 +34,8 @@ public class SchemaObject
     public string Name { get; set; } = string.Empty;
     public string Schema { get; set; } = "dbo";
     public string ObjectType { get; set; } = string.Empty;
+    public string? ParentObjectName { get; set; }
+    public string? SubType { get; set; }
 }
 
 public class DataProfile
@@ -64,6 +67,8 @@ public class CompatibilityIssue
     public string IssueType { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool IsBlocking { get; set; }
+    public CompatibilitySeverity Severity { get; set; } = CompatibilitySeverity.Supported;
+    public string? DocUrl { get; set; }
 }
 
 public class TierRecommendation
@@ -75,4 +80,7 @@ public class TierRecommendation
     public int StorageGb { get; set; }
     public decimal EstimatedMonthlyCostUsd { get; set; }
     public string Reasoning { get; set; } = string.Empty;
+    public string? RecommendedRegion { get; set; }
+    [NotMapped]
+    public List<RegionPricing> RegionalPricing { get; set; } = [];
 }

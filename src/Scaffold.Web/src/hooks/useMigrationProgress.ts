@@ -48,7 +48,7 @@ async function getAccessToken(msalInstance: PublicClientApplication): Promise<st
 
 export function useMigrationProgress(
   migrationId: string | null,
-  msalInstance: PublicClientApplication,
+  msalInstance: PublicClientApplication | null,
 ): UseMigrationProgressResult {
   const [progress, setProgress] = useState<MigrationProgress | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
@@ -65,13 +65,14 @@ export function useMigrationProgress(
 
     const hubUrl = `${import.meta.env.VITE_API_BASE_URL || ''}/hubs/migration`;
 
-    const connection = new HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => getAccessToken(msalInstance),
-      })
+    const builder = new HubConnectionBuilder()
+      .withUrl(hubUrl, msalInstance
+        ? { accessTokenFactory: () => getAccessToken(msalInstance) }
+        : {})
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-      .configureLogging(LogLevel.Warning)
-      .build();
+      .configureLogging(LogLevel.Warning);
+
+    const connection = builder.build();
 
     connectionRef.current = connection;
 

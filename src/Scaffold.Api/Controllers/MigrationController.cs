@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Scaffold.Api.Services;
+using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Infrastructure.Data;
@@ -56,10 +57,28 @@ public class MigrationController : ControllerBase
 
             var migrationId = Guid.NewGuid();
 
+            if (string.IsNullOrWhiteSpace(project.MigrationPlan.SourceConnectionString))
+                return BadRequest("Source connection string is not configured. Please re-save the migration plan.");
+
+            if (string.IsNullOrWhiteSpace(project.MigrationPlan.ExistingTargetConnectionString))
+                return BadRequest("Target connection string is required. Configure a target database in the migration plan.");
+
             project.Status = ProjectStatus.Migrating;
             await _projectRepository.UpdateAsync(project);
 
             var plan = project.MigrationPlan;
+
+            // Pre-generate SQL for canned scripts that don't have content yet
+            if (project.Assessment?.Schema is { } schema)
+            {
+                foreach (var script in plan.PreMigrationScripts.Concat(plan.PostMigrationScripts))
+                {
+                    if (script.ScriptType == MigrationScriptType.Canned && string.IsNullOrWhiteSpace(script.SqlContent))
+                    {
+                        script.SqlContent = MigrationScriptGenerator.Generate(script.ScriptId, schema) ?? string.Empty;
+                    }
+                }
+            }
 
             // Start migration as a background task
             _ = Task.Run(async () =>

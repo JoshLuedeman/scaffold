@@ -7,6 +7,7 @@ public class SqlServerMigrator : IMigrationEngine
 {
     private readonly SchemaDeployer _schemaDeployer;
     private readonly BulkDataCopier _bulkDataCopier;
+    private readonly ScriptExecutor _scriptExecutor;
     private ChangeTrackingSyncEngine? _syncEngine;
     private MigrationPlan? _activePlan;
 
@@ -14,12 +15,17 @@ public class SqlServerMigrator : IMigrationEngine
     {
         _schemaDeployer = new SchemaDeployer();
         _bulkDataCopier = new BulkDataCopier();
+        _scriptExecutor = new ScriptExecutor();
     }
 
     public SqlServerMigrator(SchemaDeployer schemaDeployer, BulkDataCopier bulkDataCopier)
+        : this(schemaDeployer, bulkDataCopier, new ScriptExecutor()) { }
+
+    public SqlServerMigrator(SchemaDeployer schemaDeployer, BulkDataCopier bulkDataCopier, ScriptExecutor scriptExecutor)
     {
         _schemaDeployer = schemaDeployer;
         _bulkDataCopier = bulkDataCopier;
+        _scriptExecutor = scriptExecutor;
     }
 
     public string SourcePlatform => "SqlServer";
@@ -53,7 +59,14 @@ public class SqlServerMigrator : IMigrationEngine
                 progress,
                 ct);
 
-            // Step 2: Data migration via SqlBulkCopy
+            // Step 2: Execute pre-migration scripts on target
+            if (plan.PreMigrationScripts.Count > 0)
+            {
+                progress?.Report(new MigrationProgress { Phase = "PreScripts", PercentComplete = 0, Message = "Running pre-migration scripts..." });
+                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PreMigrationScripts, progress, ct);
+            }
+
+            // Step 3: Data migration via SqlBulkCopy
             progress?.Report(new MigrationProgress
             {
                 Phase = "DataMigration",
@@ -67,6 +80,13 @@ public class SqlServerMigrator : IMigrationEngine
                 plan.IncludedObjects,
                 progress,
                 ct);
+
+            // Step 4: Execute post-migration scripts on target
+            if (plan.PostMigrationScripts.Count > 0)
+            {
+                progress?.Report(new MigrationProgress { Phase = "PostScripts", PercentComplete = 0, Message = "Running post-migration scripts..." });
+                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PostMigrationScripts, progress, ct);
+            }
 
             result.RowsMigrated = rowsMigrated;
             result.Success = true;
@@ -103,6 +123,13 @@ public class SqlServerMigrator : IMigrationEngine
             progress,
             ct);
 
+        // Execute pre-migration scripts before starting sync
+        if (plan.PreMigrationScripts.Count > 0)
+        {
+            progress?.Report(new MigrationProgress { Phase = "PreScripts", PercentComplete = 0, Message = "Running pre-migration scripts..." });
+            await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PreMigrationScripts, progress, ct);
+        }
+
         // Start Change Tracking based continuous sync
         _syncEngine = new ChangeTrackingSyncEngine(
             plan.SourceConnectionString!,
@@ -117,7 +144,15 @@ public class SqlServerMigrator : IMigrationEngine
         if (_syncEngine is null || _activePlan is null)
             throw new InvalidOperationException("No active continuous sync session. Call StartContinuousSyncAsync first.");
 
-        return await _syncEngine.CompleteCutoverAsync(_activePlan.ProjectId, ct);
+        var result = await _syncEngine.CompleteCutoverAsync(_activePlan.ProjectId, ct);
+
+        // Execute post-migration scripts after final sync
+        if (_activePlan.PostMigrationScripts.Count > 0)
+        {
+            await _scriptExecutor.ExecuteScriptsAsync(_activePlan.ExistingTargetConnectionString!, _activePlan.PostMigrationScripts, ct: ct);
+        }
+
+        return result;
     }
 
     private static void ValidateConnectionStrings(MigrationPlan plan)

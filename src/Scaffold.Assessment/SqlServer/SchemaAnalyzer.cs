@@ -100,7 +100,7 @@ public class SchemaAnalyzer
     private async Task CollectIndexesAsync(SchemaInventory inventory, CancellationToken ct)
     {
         const string sql = @"
-            SELECT SCHEMA_NAME(o.schema_id), i.name
+            SELECT SCHEMA_NAME(o.schema_id), i.name, o.name, i.type_desc
             FROM sys.indexes i
             INNER JOIN sys.objects o ON i.object_id = o.object_id
             WHERE i.name IS NOT NULL AND o.is_ms_shipped = 0";
@@ -112,6 +112,8 @@ public class SchemaAnalyzer
             {
                 Schema = reader.GetString(0),
                 Name = reader.GetString(1),
+                ParentObjectName = reader.GetString(2),
+                SubType = reader.GetString(3),
                 ObjectType = "Index"
             });
         }
@@ -120,7 +122,7 @@ public class SchemaAnalyzer
     private async Task CollectTriggersAsync(SchemaInventory inventory, CancellationToken ct)
     {
         const string sql = @"
-            SELECT SCHEMA_NAME(o.schema_id), t.name
+            SELECT SCHEMA_NAME(o.schema_id), t.name, o.name
             FROM sys.triggers t
             INNER JOIN sys.objects o ON t.parent_id = o.object_id
             WHERE t.parent_id <> 0";
@@ -132,6 +134,7 @@ public class SchemaAnalyzer
             {
                 Schema = reader.GetString(0),
                 Name = reader.GetString(1),
+                ParentObjectName = reader.GetString(2),
                 ObjectType = "Trigger"
             });
         }
@@ -139,7 +142,7 @@ public class SchemaAnalyzer
 
     private async Task CollectConstraintsAsync(SchemaInventory inventory, CancellationToken ct)
     {
-        const string sql = "SELECT CONSTRAINT_SCHEMA, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS";
+        const string sql = "SELECT c.CONSTRAINT_SCHEMA, c.CONSTRAINT_NAME, c.CONSTRAINT_TYPE, c.TABLE_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS c";
         await using var cmd = new SqlCommand(sql, _connection);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -148,6 +151,8 @@ public class SchemaAnalyzer
             {
                 Schema = reader.GetString(0),
                 Name = reader.GetString(1),
+                SubType = reader.GetString(2),
+                ParentObjectName = reader.GetString(3),
                 ObjectType = "Constraint"
             });
         }

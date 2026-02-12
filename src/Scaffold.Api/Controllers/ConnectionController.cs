@@ -17,9 +17,31 @@ public class ConnectionController : ControllerBase
     }
 
     [HttpPost("test")]
-    public async Task<IActionResult> TestConnection([FromBody] Core.Models.ConnectionInfo connectionInfo)
+    public async Task<IActionResult> TestConnection([FromBody] ConnectionTestRequest request)
     {
+        var connectionInfo = new Core.Models.ConnectionInfo
+        {
+            Server = request.Server,
+            Database = request.Database,
+            Port = request.Port,
+            UseSqlAuthentication = request.UseSqlAuthentication,
+            Username = request.Username,
+            Password = request.Password,
+            KeyVaultSecretUri = request.KeyVaultSecretUri,
+            TrustServerCertificate = request.TrustServerCertificate,
+        };
+
         var success = await _assessmentEngine.TestConnectionAsync(connectionInfo);
         return Ok(new { success });
     }
 }
+
+public record ConnectionTestRequest(
+    string Server,
+    string Database,
+    int Port = 1433,
+    bool UseSqlAuthentication = false,
+    string? Username = null,
+    string? Password = null,
+    string? KeyVaultSecretUri = null,
+    bool TrustServerCertificate = false);
