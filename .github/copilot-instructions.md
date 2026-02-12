@@ -95,3 +95,43 @@ azd up                                              # Deploy to Azure (interacti
 - `hooks/preprovision.sh` — Creates Entra ID app registration if needed
 - `hooks/postprovision.sh` — Updates redirect URIs with deployed URLs
 - `infra/` — Bicep modules: SQL Database, Container App, Static Web App, ACR, Key Vault, Storage
+- Bicep uses conditional auth: if `azureClientId` is provided, configures Entra ID env vars on the Container App; otherwise sets `DisableAuth=true`
+
+## Known Pitfalls & Gotchas
+
+### Progress<T> Race Condition
+`System.Progress<T>` posts callbacks asynchronously via `SynchronizationContext`. In test environments (no UI thread / no SyncContext), assertions can run before callbacks complete. Use the `SynchronousProgress<T>` helper in `SqlServerMigratorTests.cs` instead of `Progress<T>` when testing code that reports progress.
+
+### EF Core Auto-Migration Guard
+`db.Database.Migrate()` in `Program.cs` is guarded with `db.Database.IsRelational()`. Without this guard, API integration tests using `UseInMemoryDatabase()` will crash because in-memory providers don't support migrations.
+
+### Dependency Direction — No Circular References
+`Scaffold.Migration` must NOT reference `Scaffold.Assessment` (and vice versa). Both reference only `Scaffold.Core`. When migration needs assessment data (e.g., canned script SQL), the `MigrationController` pre-populates it by calling `MigrationScriptGenerator.Generate()` at the API layer before passing the plan to the migration engine.
+
+### ScriptExecutor Isolation
+`ScriptExecutor` runs raw SQL against the target database with a 300-second timeout per script. It deliberately swallows no exceptions — failures bubble up and mark the migration as failed. Scripts with empty `SqlContent` are skipped.
+
+### SignalR Hub Method Names
+The frontend client calls `connection.invoke('JoinMigration', migrationId)`. The hub method must match this name exactly (`JoinMigration`, not `JoinMigrationGroup` or similar). Method name mismatches fail silently — the client won't receive progress updates.
+
+### MigrationPlan Status Lifecycle
+`Pending` → `Scheduled` (when approved with a `ScheduledAt` date) → `Running` → `Completed` or `Failed`. Immediate migrations go `Pending` → `Running` → `Completed`/`Failed`. The `MigrationSchedulerService` only picks up plans with `Status == Scheduled`.
+
+### MigrationScript Model (Canned vs Custom)
+Canned scripts have a `ScriptId` (e.g., `drop-foreign-keys`) and their `SqlContent` is generated at execution time from the assessment schema via `MigrationScriptGenerator`. Custom scripts store user-provided SQL directly. Both are stored as owned JSON collections on `MigrationPlan`.
+
+### Nginx WebSocket Proxy
+The `nginx.conf` in the Web Dockerfile must include `proxy_http_version 1.1`, `Upgrade`, and `Connection: upgrade` headers for the `/hubs/` location block. Without these, SignalR WebSocket connections will fail and fall back to long-polling.
+
+### Frontend API Proxy (Dev)
+Vite dev server proxies `/api` and `/hubs` to `http://localhost:5062` (the API). This is configured in `vite.config.ts`. The frontend never hardcodes API URLs — all requests go to relative paths.
+
+### UI Fallbacks for Missing Data
+Assessment recommendations may have empty `ServiceTier` or `ComputeSize` (e.g., when pricing data is unavailable). The UI uses `|| 'Not Available'` / `|| 'N/A'` fallbacks to avoid showing "None None".
+
+## Roadmap / Future Work
+
+- **Azure Data Factory integration** — Alternative to SqlBulkCopy for large-scale data movement
+- **PostgreSQL support** — New platform engine implementing `IAssessmentEngine` and `IMigrationEngine`
+- **Migration progress crash recovery** — Resume interrupted migrations using persisted `MigrationProgressRecords`
+- **E2E browser tests** — Automated Playwright tests for the full create → assess → plan → migrate flow
