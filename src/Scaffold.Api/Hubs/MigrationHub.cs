@@ -6,7 +6,7 @@ namespace Scaffold.Api.Hubs;
 [Authorize]
 public class MigrationHub : Hub
 {
-    public async Task JoinMigrationGroup(string migrationId)
+    public async Task JoinMigration(string migrationId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, migrationId);
     }

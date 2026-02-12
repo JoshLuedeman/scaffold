@@ -85,6 +85,7 @@ public class MigrationController : ControllerBase
             {
                 try
                 {
+                    _progressService.SetMigrationId(migrationId.ToString());
                     await _progressService.MigrationStarted(migrationId.ToString());
 
                     Core.Models.MigrationResult result;
