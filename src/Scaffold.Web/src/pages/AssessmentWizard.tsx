@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button,
@@ -151,6 +151,30 @@ export default function AssessmentWizard() {
   const [error, setError] = useState<string | null>(null);
   const styles = useStyles();
 
+  // Pre-populate form from existing project connection
+  useEffect(() => {
+    if (!id) return;
+    api.get<{ sourceConnection?: {
+      server: string; database: string; port: number;
+      useSqlAuthentication: boolean; username?: string;
+    } }>(`/projects/${id}`)
+      .then((project) => {
+        if (project.sourceConnection) {
+          const c = project.sourceConnection;
+          setForm((prev) => ({
+            ...prev,
+            server: c.server || prev.server,
+            database: c.database || prev.database,
+            port: String(c.port ?? 1433),
+            useSqlAuth: c.useSqlAuthentication ?? prev.useSqlAuth,
+            username: c.username || prev.username,
+            // Password is never returned from the API — user must re-enter it
+          }));
+        }
+      })
+      .catch(() => { /* ignore — form stays empty */ });
+  }, [id]);
+
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   async function testConnection() {
@@ -197,7 +221,8 @@ export default function AssessmentWizard() {
     }
   }
 
-  const canProceedToAssess = form.server && form.database && testResult?.ok;
+  const canProceedToAssess = form.server && form.database && testResult?.ok
+    && (!form.useSqlAuth || (form.username && form.password));
 
   function stepCircleClass(i: number) {
     if (i < stepIndex) return `${styles.stepCircle} ${styles.stepCircleCompleted}`;
@@ -269,8 +294,8 @@ export default function AssessmentWizard() {
                   <Field label="Username">
                     <Input value={form.username} onChange={(_, d) => { setForm((prev) => ({ ...prev, username: d.value })); setTestResult(null); }} />
                   </Field>
-                  <Field label="Password">
-                    <Input value={form.password} onChange={(_, d) => { setForm((prev) => ({ ...prev, password: d.value })); setTestResult(null); }} type="password" />
+                  <Field label="Password" hint="Required each time — passwords are not stored">
+                    <Input value={form.password} onChange={(_, d) => { setForm((prev) => ({ ...prev, password: d.value })); setTestResult(null); }} type="password" placeholder="Enter password" />
                   </Field>
                 </>
               )}
