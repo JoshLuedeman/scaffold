@@ -4,6 +4,7 @@ namespace Scaffold.Integration.Tests;
 
 /// <summary>
 /// Provides a shared SQL Server connection for integration tests.
+/// Automatically creates the database and seeds it from seed-sample-db.sql.
 /// Connection string is read from the SCAFFOLD_TEST_CONNECTION_STRING environment variable,
 /// which is set by CI (GitHub Actions service container).
 /// </summary>
@@ -23,6 +24,22 @@ public class SqlServerFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Extract the database name and build a master connection to create it
+        var builder = new SqlConnectionStringBuilder(ConnectionString);
+        var databaseName = builder.InitialCatalog;
+
+        builder.InitialCatalog = "master";
+        await using var masterConn = new SqlConnection(builder.ConnectionString);
+        await masterConn.OpenAsync();
+
+        // Create database if it doesn't exist
+        await using var createCmd = new SqlCommand(
+            $"IF DB_ID('{databaseName}') IS NULL CREATE DATABASE [{databaseName}]", masterConn);
+        createCmd.CommandTimeout = 30;
+        await createCmd.ExecuteNonQueryAsync();
+        await masterConn.CloseAsync();
+
+        // Connect to the target database
         Connection = new SqlConnection(ConnectionString);
         await Connection.OpenAsync();
 
@@ -31,7 +48,6 @@ public class SqlServerFixture : IAsyncLifetime
         if (File.Exists(seedPath))
         {
             var sql = await File.ReadAllTextAsync(seedPath);
-            // Split on GO batches
             var batches = sql.Split(["\nGO\n", "\nGO\r\n", "\r\nGO\r\n", "\r\nGO\n"],
                 StringSplitOptions.RemoveEmptyEntries);
 
