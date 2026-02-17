@@ -6,7 +6,7 @@ namespace Scaffold.Integration.Tests;
 /// Integration tests for DataProfiler against a real SQL Server instance.
 /// </summary>
 [Collection("SqlServer")]
-public class DataProfilerIntegrationTests : IClassFixture<SqlServerFixture>
+public class DataProfilerIntegrationTests
 {
     private readonly SqlServerFixture _fixture;
 

@@ -9,7 +9,7 @@ namespace Scaffold.Integration.Tests;
 /// find few or no blocking issues.
 /// </summary>
 [Collection("SqlServer")]
-public class CompatibilityCheckerIntegrationTests : IClassFixture<SqlServerFixture>
+public class CompatibilityCheckerIntegrationTests
 {
     private readonly SqlServerFixture _fixture;
 

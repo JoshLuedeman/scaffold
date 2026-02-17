@@ -1,8 +1,21 @@
 -- Sample database schema for integration tests
 -- Creates a realistic small database with various SQL Server features
 -- that the assessment engine can analyze.
+-- Script is idempotent: safe to run multiple times.
 
 -- Tables
+IF OBJECT_ID('dbo.OrderItems', 'U') IS NOT NULL DROP TABLE dbo.OrderItems;
+IF OBJECT_ID('dbo.Orders', 'U') IS NOT NULL DROP TABLE dbo.Orders;
+IF OBJECT_ID('dbo.Products', 'U') IS NOT NULL DROP TABLE dbo.Products;
+IF OBJECT_ID('dbo.AuditLog', 'U') IS NOT NULL DROP TABLE dbo.AuditLog;
+IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL DROP TABLE dbo.Users;
+IF OBJECT_ID('dbo.vw_OrderSummary', 'V') IS NOT NULL DROP VIEW dbo.vw_OrderSummary;
+IF OBJECT_ID('dbo.vw_ProductSales', 'V') IS NOT NULL DROP VIEW dbo.vw_ProductSales;
+IF OBJECT_ID('dbo.sp_GetUserOrders', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_GetUserOrders;
+IF OBJECT_ID('dbo.sp_CreateOrder', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_CreateOrder;
+IF OBJECT_ID('dbo.sp_UpdateOrderStatus', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_UpdateOrderStatus;
+IF OBJECT_ID('dbo.fn_GetOrderTotal', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GetOrderTotal;
+
 CREATE TABLE dbo.Users (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     Username NVARCHAR(100) NOT NULL,

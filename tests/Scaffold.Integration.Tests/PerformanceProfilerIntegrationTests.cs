@@ -6,7 +6,7 @@ namespace Scaffold.Integration.Tests;
 /// Integration tests for PerformanceProfiler against a real SQL Server instance.
 /// </summary>
 [Collection("SqlServer")]
-public class PerformanceProfilerIntegrationTests : IClassFixture<SqlServerFixture>
+public class PerformanceProfilerIntegrationTests
 {
     private readonly SqlServerFixture _fixture;
 

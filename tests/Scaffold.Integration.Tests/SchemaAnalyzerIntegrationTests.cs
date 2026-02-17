@@ -8,7 +8,7 @@ namespace Scaffold.Integration.Tests;
 /// These tests require a running SQL Server with the sample database seeded.
 /// </summary>
 [Collection("SqlServer")]
-public class SchemaAnalyzerIntegrationTests : IClassFixture<SqlServerFixture>
+public class SchemaAnalyzerIntegrationTests
 {
     private readonly SqlServerFixture _fixture;
 
