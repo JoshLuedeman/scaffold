@@ -56,6 +56,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         if (migrationEngineDescriptor != null) services.Remove(migrationEngineDescriptor);
         services.AddScoped<IMigrationEngine, StubMigrationEngine>();
 
+        var assessmentEngineDescriptor = services.SingleOrDefault(
+            d => d.ServiceType == typeof(IAssessmentEngine));
+        if (assessmentEngineDescriptor != null) services.Remove(assessmentEngineDescriptor);
+        services.AddScoped<IAssessmentEngine, StubAssessmentEngine>();
+
         var validationDescriptor = services.SingleOrDefault(
             d => d.ServiceType == typeof(ValidationEngine));
         if (validationDescriptor != null) services.Remove(validationDescriptor);
@@ -135,6 +140,72 @@ public class StubMigrationEngine : IMigrationEngine
             Success = true,
             StartedAt = DateTime.UtcNow,
             CompletedAt = DateTime.UtcNow
+        });
+    }
+}
+
+/// <summary>
+/// Stub IAssessmentEngine that returns canned results without connecting to any database.
+/// </summary>
+public class StubAssessmentEngine : IAssessmentEngine
+{
+    public string SourcePlatform => "Stub";
+
+    public Task<bool> TestConnectionAsync(ConnectionInfo source)
+        => Task.FromResult(true);
+
+    public Task<AssessmentReport> AssessAsync(ConnectionInfo source, CancellationToken ct = default)
+    {
+        return Task.FromResult(new AssessmentReport
+        {
+            Id = Guid.NewGuid(),
+            GeneratedAt = DateTime.UtcNow,
+            Schema = new SchemaInventory
+            {
+                TableCount = 5,
+                ViewCount = 2,
+                StoredProcedureCount = 3,
+                Objects = [
+                    new SchemaObject { Name = "Users", ObjectType = "Table" },
+                    new SchemaObject { Name = "Orders", ObjectType = "Table" }
+                ]
+            },
+            DataProfile = new DataProfile { TotalRowCount = 1000, TotalSizeBytes = 1_048_576 },
+            CompatibilityIssues =
+            [
+                new CompatibilityIssue
+                {
+                    ObjectName = "dbo.LegacyProc",
+                    IssueType = "CLR Assembly",
+                    Description = "CLR assemblies are not supported in Azure SQL Database.",
+                    IsBlocking = true,
+                    Severity = Core.Enums.CompatibilitySeverity.Unsupported
+                }
+            ],
+            CompatibilityScore = 95.0,
+            Risk = Core.Enums.RiskRating.High,
+            Recommendation = new TierRecommendation
+            {
+                ServiceTier = "General Purpose",
+                ComputeSize = "Standard_D2s_v3",
+                VCores = 2,
+                StorageGb = 32,
+                EstimatedMonthlyCostUsd = 150.00m,
+                Reasoning = "Stub recommendation"
+            }
+        });
+    }
+
+    public Task<TierRecommendation> RecommendTierAsync(AssessmentReport report)
+    {
+        return Task.FromResult(new TierRecommendation
+        {
+            ServiceTier = "General Purpose",
+            ComputeSize = "Standard_D2s_v3",
+            VCores = 2,
+            StorageGb = 32,
+            EstimatedMonthlyCostUsd = 150.00m,
+            Reasoning = "Stub recommendation"
         });
     }
 }
