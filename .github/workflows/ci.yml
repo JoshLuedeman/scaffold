@@ -118,10 +118,12 @@ jobs:
         run: |
           docker run --rm --network host \
             -v "${{ github.workspace }}/tests/Scaffold.Integration.Tests:/scripts" \
-            mcr.microsoft.com/mssql-tools:latest /bin/bash -c "
-              /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ScaffoldTest2025!' -C -Q 'CREATE DATABASE ScaffoldTestDb' &&
-              /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ScaffoldTest2025!' -C -d ScaffoldTestDb -i /scripts/seed-sample-db.sql
-            "
+            mcr.microsoft.com/mssql-tools18:latest /opt/mssql-tools18/bin/sqlcmd \
+              -S localhost -U sa -P 'ScaffoldTest2025!' -C -Q 'CREATE DATABASE ScaffoldTestDb'
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/tests/Scaffold.Integration.Tests:/scripts" \
+            mcr.microsoft.com/mssql-tools18:latest /opt/mssql-tools18/bin/sqlcmd \
+              -S localhost -U sa -P 'ScaffoldTest2025!' -C -d ScaffoldTestDb -i /scripts/seed-sample-db.sql
 
       - name: Build
         run: dotnet build --configuration Release
