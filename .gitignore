@@ -25,6 +25,10 @@
 .DS_Store
 Thumbs.db
 
+## Test results & coverage
+**/TestResults/
+**/CoverageReport/
+
 ## Secrets
 appsettings.Development.json
 .env
