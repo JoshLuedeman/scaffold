@@ -16,6 +16,7 @@ COPY src/Scaffold.Infrastructure/Scaffold.Infrastructure.csproj src/Scaffold.Inf
 COPY tests/Scaffold.Api.Tests/Scaffold.Api.Tests.csproj tests/Scaffold.Api.Tests/
 COPY tests/Scaffold.Assessment.Tests/Scaffold.Assessment.Tests.csproj tests/Scaffold.Assessment.Tests/
 COPY tests/Scaffold.Migration.Tests/Scaffold.Migration.Tests.csproj tests/Scaffold.Migration.Tests/
+COPY tests/Scaffold.Integration.Tests/Scaffold.Integration.Tests.csproj tests/Scaffold.Integration.Tests/
 
 # Restore dependencies
 RUN dotnet restore Scaffold.sln
