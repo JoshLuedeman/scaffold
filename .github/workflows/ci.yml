@@ -24,7 +24,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --settings coverage.runsettings
+        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --settings coverage.runsettings --filter "FullyQualifiedName!~Scaffold.Integration.Tests"
 
       - name: Generate coverage report
         if: always()
@@ -87,3 +87,50 @@ jobs:
 
       - name: Build Web image
         run: docker build -f src/Scaffold.Web/Dockerfile .
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: ScaffoldTest2025!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ScaffoldTest2025! -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Create test database
+        run: |
+          sudo apt-get install -y mssql-tools18 unixodbc-dev > /dev/null 2>&1 || true
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ScaffoldTest2025!' -C -Q "CREATE DATABASE ScaffoldTestDb"
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ScaffoldTest2025!' -C -d ScaffoldTestDb -i tests/Scaffold.Integration.Tests/seed-sample-db.sql
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Run integration tests
+        env:
+          SCAFFOLD_TEST_CONNECTION_STRING: "Server=localhost,1433;Database=ScaffoldTestDb;User Id=sa;Password=ScaffoldTest2025!;TrustServerCertificate=true;Encrypt=true"
+        run: dotnet test tests/Scaffold.Integration.Tests --no-build --configuration Release --logger "trx;LogFileName=integration-results.trx"
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: '**/integration-results.trx'

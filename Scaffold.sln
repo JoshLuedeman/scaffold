@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scaffold.Assessment.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scaffold.Migration.Tests", "tests\Scaffold.Migration.Tests\Scaffold.Migration.Tests.csproj", "{3E026993-201A-4600-9EF1-AC6FB7600B6E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scaffold.Integration.Tests", "tests\Scaffold.Integration.Tests\Scaffold.Integration.Tests.csproj", "{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -64,6 +66,10 @@ Global
 		{3E026993-201A-4600-9EF1-AC6FB7600B6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3E026993-201A-4600-9EF1-AC6FB7600B6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3E026993-201A-4600-9EF1-AC6FB7600B6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{90645700-C6E6-492B-94FC-D13C13246777} = {5E1ECD39-3BD9-4700-882A-B50951302225}
@@ -74,5 +80,6 @@ Global
 		{409C22AF-7744-480D-992A-D8C65A24AB60} = {64527F40-3B00-4CC8-98D6-CBD497579403}
 		{02EFCA61-4856-4E70-A982-91FCB2E58A84} = {64527F40-3B00-4CC8-98D6-CBD497579403}
 		{3E026993-201A-4600-9EF1-AC6FB7600B6E} = {64527F40-3B00-4CC8-98D6-CBD497579403}
+		{D21F94FF-802C-4E43-9A1E-3FBE2EA4C36C} = {64527F40-3B00-4CC8-98D6-CBD497579403}
 	EndGlobalSection
 EndGlobal
