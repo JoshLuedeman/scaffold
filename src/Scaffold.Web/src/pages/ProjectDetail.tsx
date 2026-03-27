@@ -93,12 +93,32 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    api
-      .get<MigrationProject>(`/projects/${id}`)
-      .then((data) => setProject(data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load project'))
-      .finally(() => setLoading(false));
+    
+    let cancelled = false;
+    
+    const loadProject = async () => {
+      try {
+        setLoading(true);
+        const data = await api.get<MigrationProject>(`/projects/${id}`);
+        if (!cancelled) {
+          setProject(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load project');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadProject();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const onTabSelect: SelectTabEventHandler = (_ev, data: SelectTabData) => {

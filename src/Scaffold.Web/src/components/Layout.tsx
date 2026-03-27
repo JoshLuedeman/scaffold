@@ -12,11 +12,11 @@ import {
   WeatherSunnyRegular,
   FolderRegular,
 } from '@fluentui/react-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme/useTheme';
 
 function useAuth() {
+  const { instance, accounts } = useMsal();
   try {
-    const { instance, accounts } = useMsal();
     return {
       name: accounts[0]?.name ?? accounts[0]?.username,
       logout: () => instance.logoutRedirect(),

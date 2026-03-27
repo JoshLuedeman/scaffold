@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { AssessmentReport as Report, RiskRating, CompatibilitySeverity, ServiceCompatibility, CompatibilityIssue } from '../types';
 import { api } from '../services/api';
 import {
@@ -149,7 +149,7 @@ export default function AssessmentReport({ report, projectId }: { report: Report
   const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk } = report;
   const [serviceSummaries, setServiceSummaries] = useState<ServiceCompatibility[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [filteredIssues, setFilteredIssues] = useState<CompatibilityIssue[]>([]);
+  const [evaluatedIssues, setEvaluatedIssues] = useState<CompatibilityIssue[] | null>(null);
 
   useEffect(() => {
     api.get<ServiceCompatibility[]>(`/projects/${projectId}/assessments/compatibility-summary`)
@@ -159,18 +159,39 @@ export default function AssessmentReport({ report, projectId }: { report: Report
 
   useEffect(() => {
     if (!selectedService) {
-      setFilteredIssues([...compatibilityIssues].filter((i) => i.severity !== 'Supported').sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]));
       return;
     }
+    
+    let cancelled = false;
+    
     api.post<{ compatibilityIssues: CompatibilityIssue[] }>(`/projects/${projectId}/assessments/evaluate-target`, { targetService: selectedService })
       .then((data) => {
-        const issues = data.compatibilityIssues
-          .filter((i) => i.severity !== 'Supported')
-          .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-        setFilteredIssues(issues);
+        if (!cancelled) {
+          const issues = data.compatibilityIssues
+            .filter((i) => i.severity !== 'Supported')
+            .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+          setEvaluatedIssues(issues);
+        }
       })
-      .catch(() => {});
-  }, [selectedService, projectId, compatibilityIssues]);
+      .catch(() => {
+        if (!cancelled) {
+          setEvaluatedIssues(null);
+        }
+      });
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedService, projectId]);
+
+  const filteredIssues = useMemo(() => {
+    if (selectedService && evaluatedIssues !== null) {
+      return evaluatedIssues;
+    }
+    return [...compatibilityIssues]
+      .filter((i) => i.severity !== 'Supported')
+      .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  }, [selectedService, evaluatedIssues, compatibilityIssues]);
 
   const displayIssues = filteredIssues;
   const unsupportedCount = displayIssues.filter((i) => i.severity === 'Unsupported').length;

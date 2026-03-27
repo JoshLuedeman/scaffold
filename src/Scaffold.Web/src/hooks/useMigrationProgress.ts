@@ -112,7 +112,6 @@ export function useMigrationProgress(
       setConnectionStatus('disconnected');
     });
 
-    setConnectionStatus('connecting');
     connection
       .start()
       .then(() => {
