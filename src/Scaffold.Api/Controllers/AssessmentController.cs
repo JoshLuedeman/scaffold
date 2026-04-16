@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scaffold.Assessment.SqlServer;
@@ -221,13 +222,13 @@ public class AssessmentController : ControllerBase
 }
 
 public record AssessmentRequest(
-    string? Server,
-    string? Database,
-    int? Port,
+    [StringLength(500)] string? Server,
+    [StringLength(200)] string? Database,
+    [Range(1, 65535)] int? Port,
     bool? UseSqlAuthentication,
-    string? Username,
+    [StringLength(200)] string? Username,
     string? Password,
     bool? TrustServerCertificate,
-    string? TargetService);
+    [StringLength(200)] string? TargetService);
 
-public record EvaluateTargetRequest(string TargetService);
+public record EvaluateTargetRequest([Required][StringLength(200)] string TargetService);
