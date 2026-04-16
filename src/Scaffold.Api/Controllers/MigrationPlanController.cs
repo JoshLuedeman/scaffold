@@ -15,13 +15,16 @@ public class MigrationPlanController : ControllerBase
 {
     private readonly IProjectRepository _projectRepository;
     private readonly ScaffoldDbContext _dbContext;
+    private readonly IConnectionStringProtector _protector;
 
     public MigrationPlanController(
         IProjectRepository projectRepository,
-        ScaffoldDbContext dbContext)
+        ScaffoldDbContext dbContext,
+        IConnectionStringProtector protector)
     {
         _projectRepository = projectRepository;
         _dbContext = dbContext;
+        _protector = protector;
     }
 
     [HttpPost]
@@ -77,6 +80,12 @@ public class MigrationPlanController : ControllerBase
                 plan.SourceConnectionString = project.SourceConnection.BuildConnectionString();
             }
 
+            // Encrypt connection strings before persisting
+            if (!string.IsNullOrEmpty(plan.SourceConnectionString))
+                plan.SourceConnectionString = _protector.Protect(plan.SourceConnectionString);
+            if (!string.IsNullOrEmpty(plan.ExistingTargetConnectionString))
+                plan.ExistingTargetConnectionString = _protector.Protect(plan.ExistingTargetConnectionString);
+
             // Replace existing plan if present
             if (project.MigrationPlan is not null)
             {
@@ -90,7 +99,7 @@ public class MigrationPlanController : ControllerBase
             project.Status = ProjectStatus.MigrationPlanned;
             await _projectRepository.UpdateAsync(project);
 
-            return CreatedAtAction(nameof(GetLatest), new { projectId }, MigrationPlanResponse.FromModel(plan));
+            return CreatedAtAction(nameof(GetLatest), new { projectId }, ToResponse(plan));
         }
         catch (KeyNotFoundException)
         {
@@ -108,7 +117,7 @@ public class MigrationPlanController : ControllerBase
             if (project.MigrationPlan is null)
                 return NotFound("No migration plan found for this project.");
 
-            return Ok(MigrationPlanResponse.FromModel(project.MigrationPlan));
+            return Ok(ToResponse(project.MigrationPlan));
         }
         catch (KeyNotFoundException)
         {
@@ -144,7 +153,8 @@ public class MigrationPlanController : ControllerBase
             if (request.PostMigrationScripts is not null || request.PostMigrationScript is not null)
                 plan.PostMigrationScripts = MapScripts(request.PostMigrationScripts, request.PostMigrationScript, MigrationScriptPhase.Post);
             if (request.UseExistingTarget.HasValue) plan.UseExistingTarget = request.UseExistingTarget.Value;
-            if (!string.IsNullOrEmpty(request.ExistingTargetConnectionString)) plan.ExistingTargetConnectionString = request.ExistingTargetConnectionString;
+            if (!string.IsNullOrEmpty(request.ExistingTargetConnectionString))
+                plan.ExistingTargetConnectionString = _protector.Protect(request.ExistingTargetConnectionString);
             if (request.SourcePlatform.HasValue) plan.SourcePlatform = request.SourcePlatform.Value;
             if (request.TargetPlatform.HasValue) plan.TargetPlatform = request.TargetPlatform.Value;
 
@@ -164,7 +174,7 @@ public class MigrationPlanController : ControllerBase
 
             await _dbContext.SaveChangesAsync(ct);
 
-            return Ok(MigrationPlanResponse.FromModel(plan));
+            return Ok(ToResponse(plan));
         }
         catch (KeyNotFoundException)
         {
@@ -198,7 +208,7 @@ public class MigrationPlanController : ControllerBase
 
             await _dbContext.SaveChangesAsync(ct);
 
-            return Ok(MigrationPlanResponse.FromModel(project.MigrationPlan));
+            return Ok(ToResponse(project.MigrationPlan));
         }
         catch (KeyNotFoundException)
         {
@@ -226,7 +236,7 @@ public class MigrationPlanController : ControllerBase
             project.MigrationPlan.ApprovedBy = null;
             await _dbContext.SaveChangesAsync(ct);
 
-            return Ok(MigrationPlanResponse.FromModel(project.MigrationPlan));
+            return Ok(ToResponse(project.MigrationPlan));
         }
         catch (KeyNotFoundException)
         {
@@ -323,6 +333,19 @@ public class MigrationPlanController : ControllerBase
         {
             return NotFound();
         }
+    }
+
+    private MigrationPlanResponse ToResponse(MigrationPlan plan)
+    {
+        var response = MigrationPlanResponse.FromModel(plan);
+        if (!string.IsNullOrEmpty(response.ExistingTargetConnectionString))
+        {
+            response = response with
+            {
+                ExistingTargetConnectionString = _protector.Unprotect(response.ExistingTargetConnectionString)
+            };
+        }
+        return response;
     }
 
     private static string FormatBytes(long bytes)
