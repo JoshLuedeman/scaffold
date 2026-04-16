@@ -68,8 +68,8 @@ azd up                                              # Deploy to Azure
 | Phase | Focus | Status |
 |---|---|---|
 | **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Merged (PR #89, 17 issues) |
-| **Phase 0.5**: Testing & Quality | Comprehensive test coverage, frontend tests, CI improvements | 🔜 Next |
-| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | Planned |
+| **Phase 0.5**: Infrastructure & DevOps Hardening | Observability, CD pipeline, security scanning, VNet, alerts | ✅ Merged (PR #90, 10 issues) |
+| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | 🔜 Next |
 | **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | Planned |
 | **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | Planned |
 | **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | Planned |
@@ -91,6 +91,23 @@ azd up                                              # Deploy to Azure
 - **Connection String Encryption**: `IConnectionStringProtector` using ASP.NET Core Data Protection; encrypts `SourceConnectionString` and `ExistingTargetConnectionString` at rest.
 - **Pre-Migration Validation**: `IPreMigrationValidator` validates plans before execution (strategy, schedule, objects, connection strings).
 - **API Pagination**: `PaginatedResult<T>` with page/pageSize clamping (1-100).
+
+### Phase 0.5 Lessons Learned
+- **Copilot review via CLI**: `gh pr edit --add-reviewer "copilot"` still doesn't reliably trigger Copilot reviews — may need UI button click each time.
+- **Sequential agent dispatching**: Batching 2 related issues per coder agent (e.g., #58+#59 Bicep, #60+#61 deployment) works well and avoids parallel git conflicts.
+- **Conditional Bicep resources**: Use `if` for conditional resource deployment (e.g., VNet only in prod) and `union()` for conditional property merging.
+
+### Phase 0.5 Infrastructure Additions
+- **Observability**: Application Insights + Log Analytics workspace connected to Container App managed environment.
+- **CD Pipeline**: `cd.yml` workflow with OIDC Azure auth, ACR push, Container App deploy, Static Web App deploy, EF migrations.
+- **Security Scanning**: CodeQL (C# + JS/TS), Trivy container scans, Dependabot (NuGet, npm, Actions, Docker), CODEOWNERS.
+- **Health Probes**: Startup (5min window), liveness (30s), readiness (checks DB) on Container App.
+- **VNet Isolation**: Conditional VNet with private endpoints for SQL + Key Vault (prod only, dev opts out).
+- **Azure Monitor Alerts**: 5xx errors, container restarts, migration failures, SignalR failures, high latency.
+- **Non-root Docker**: Both API and Web containers run as UID 1000 `appuser`.
+- **Production SKUs**: SQL S1, Container App 0.5 CPU/1Gi, Standard ACR/SWA (~$85-105/mo).
+- **DB Migration Hook**: `postprovision.sh` runs `dotnet ef database update` during deployment.
+- **ESLint CI**: Frontend lint step enforced in CI pipeline.
 
 ## Known Pitfalls
 
