@@ -54,14 +54,22 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<MigrationProgressService>();
 builder.Services.AddHostedService<MigrationSchedulerService>();
 
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<IConnectionStringProtector, Scaffold.Infrastructure.Security.ConnectionStringProtector>();
+
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<AzurePricingService>();
 builder.Services.AddScoped<IAzurePricingService, AzurePricingService>();
 
 builder.Services.AddSingleton<SqlServerConnectionFactory>();
 builder.Services.AddScoped<IAssessmentEngine, SqlServerAssessor>();
+builder.Services.AddScoped<SqlServerAssessor>();
 builder.Services.AddScoped<IMigrationEngine, SqlServerMigrator>();
+builder.Services.AddScoped<SqlServerMigrator>();
+builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
+builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();
 builder.Services.AddSingleton<ValidationEngine>();
+builder.Services.AddScoped<IPreMigrationValidator, PreMigrationValidator>();
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ScaffoldDbContext>();
