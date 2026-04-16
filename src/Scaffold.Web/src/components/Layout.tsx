@@ -12,18 +12,17 @@ import {
   WeatherSunnyRegular,
   FolderRegular,
 } from '@fluentui/react-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme/useTheme';
 
 function useAuth() {
-  try {
-    const { instance, accounts } = useMsal();
-    return {
-      name: accounts[0]?.name ?? accounts[0]?.username,
-      logout: () => instance.logoutRedirect(),
-    };
-  } catch {
+  const { instance, accounts } = useMsal();
+  if (accounts.length === 0) {
     return { name: 'Developer', logout: undefined };
   }
+  return {
+    name: accounts[0]?.name ?? accounts[0]?.username,
+    logout: () => instance.logoutRedirect(),
+  };
 }
 
 const useStyles = makeStyles({
