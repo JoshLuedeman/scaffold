@@ -1,4 +1,5 @@
-﻿using Scaffold.Core.Enums;
+﻿using System.ComponentModel.DataAnnotations;
+using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
 
@@ -9,6 +10,9 @@ public class MigrationProject : AuditableEntity
     public string? Description { get; set; }
     public ProjectStatus Status { get; set; } = ProjectStatus.Created;
     public string CreatedBy { get; set; } = string.Empty;
+
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = [];
 
     public ConnectionInfo? SourceConnection { get; set; }
     public AssessmentReport? Assessment { get; set; }

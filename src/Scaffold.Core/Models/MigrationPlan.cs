@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
@@ -7,6 +8,9 @@ public class MigrationPlan : AuditableEntity
 {
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
+
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = [];
     public DatabasePlatform SourcePlatform { get; set; } = DatabasePlatform.SqlServer;
     public DatabasePlatform TargetPlatform { get; set; } = DatabasePlatform.SqlServer;
     public MigrationStrategy Strategy { get; set; }

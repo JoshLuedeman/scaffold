@@ -80,6 +80,8 @@ public class ScaffoldDbContext : DbContext
                 .WithOne()
                 .HasForeignKey<MigrationPlan>(m => m.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(e => e.RowVersion).IsRowVersion();
         });
     }
 
@@ -186,6 +188,8 @@ public class ScaffoldDbContext : DbContext
                 t.Property(r => r.EstimatedMonthlyCostUsd).HasPrecision(18, 2);
                 t.ToJson();
             });
+
+            entity.Property(e => e.RowVersion).IsRowVersion();
         });
     }
 
