@@ -35,6 +35,23 @@ public class ProjectRepository : IProjectRepository
             .ToListAsync();
     }
 
+    public async Task<PaginatedResult<MigrationProject>> GetAllAsync(int page, int pageSize)
+    {
+        var totalCount = await _context.MigrationProjects.CountAsync();
+
+        var items = await _context.MigrationProjects
+            .Include(p => p.SourceConnection)
+            .Include(p => p.Assessment)
+            .Include(p => p.MigrationPlan)
+            .AsNoTracking()
+            .OrderBy(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PaginatedResult<MigrationProject>(items, totalCount, page, pageSize);
+    }
+
     public async Task<MigrationProject> CreateAsync(MigrationProject project)
     {
         _context.MigrationProjects.Add(project);

@@ -29,8 +29,10 @@ public class ProjectControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.GetAsync("/api/projects");
 
         response.EnsureSuccessStatusCode();
-        var projects = await response.Content.ReadFromJsonAsync<List<MigrationProject>>(_jsonOptions);
-        Assert.NotNull(projects);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<MigrationProject>>(_jsonOptions);
+        Assert.NotNull(result);
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
     }
 
     [Fact]

@@ -18,10 +18,16 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var projects = await _projectRepository.GetAllAsync();
-        return Ok(projects);
+        // Clamp page to minimum of 1
+        page = Math.Max(1, page);
+
+        // Clamp pageSize between 1 and 100
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var result = await _projectRepository.GetAllAsync(page, pageSize);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
