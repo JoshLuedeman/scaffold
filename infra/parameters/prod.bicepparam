@@ -33,3 +33,5 @@ param staticWebAppSkuTier = 'Standard'
 param acrSkuName = 'Standard'
 
 param enableVnetIsolation = true
+
+param alertEmailAddress = ''

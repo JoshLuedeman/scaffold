@@ -51,6 +51,9 @@ param acrSkuName string = 'Basic'
 @description('Enable VNet isolation with private endpoints for SQL and Key Vault')
 param enableVnetIsolation bool = false
 
+@description('Email address for alert notifications')
+param alertEmailAddress string = ''
+
 var prefix = 'scaffold-${environmentName}'
 
 module logAnalytics 'modules/logAnalytics.bicep' = {
@@ -196,6 +199,17 @@ module storage 'modules/storageAccount.bicep' = {
   }
 }
 
+module alerts 'modules/alerts.bicep' = {
+  name: 'alerts'
+  params: {
+    prefix: prefix
+    location: location
+    appInsightsId: appInsights.outputs.appInsightsId
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    alertEmailAddress: alertEmailAddress
+  }
+}
+
 output sqlServerFqdn string = sql.outputs.sqlServerFqdn
 output sqlDatabaseName string = sql.outputs.sqlDatabaseName
 output keyVaultUri string = keyVault.outputs.keyVaultUri
@@ -206,3 +220,4 @@ output acrLoginServer string = acr.outputs.loginServer
 output acrName string = acr.outputs.name
 output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
 output appInsightsConnectionString string = appInsights.outputs.connectionString
+output alertsActionGroupId string = alerts.outputs.actionGroupId
