@@ -66,6 +66,8 @@ builder.Services.AddScoped<IAzurePricingService, AzurePricingService>();
 
 builder.Services.AddSingleton<SqlServerConnectionFactory>();
 builder.Services.AddScoped<SqlServerAssessor>();
+builder.Services.AddSingleton<Scaffold.Assessment.PostgreSql.PostgreSqlConnectionFactory>();
+builder.Services.AddScoped<Scaffold.Assessment.PostgreSql.PostgreSqlAssessor>();
 builder.Services.AddScoped<SqlServerMigrator>();
 builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
 builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();

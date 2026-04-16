@@ -1,3 +1,4 @@
+using Scaffold.Assessment.PostgreSql;
 using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
@@ -12,7 +13,8 @@ public class AssessmentEngineFactory : IAssessmentEngineFactory
     {
         _factories = new()
         {
-            [DatabasePlatform.SqlServer] = () => serviceProvider.GetRequiredService<SqlServerAssessor>()
+            [DatabasePlatform.SqlServer] = () => serviceProvider.GetRequiredService<SqlServerAssessor>(),
+            [DatabasePlatform.PostgreSql] = () => serviceProvider.GetRequiredService<PostgreSqlAssessor>()
         };
     }
 

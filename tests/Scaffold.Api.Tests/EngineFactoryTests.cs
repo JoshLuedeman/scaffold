@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Scaffold.Api.Services;
+using Scaffold.Assessment.PostgreSql;
 using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
@@ -32,6 +33,28 @@ public class EngineFactoryTests
     }
 
     [Fact]
+    public void AssessmentFactory_Create_PostgreSql_Returns_PostgreSqlAssessor()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<PostgreSqlConnectionFactory>();
+        services.AddLogging();
+        services.AddScoped<PostgreSqlAssessor>();
+        services.AddSingleton<SqlServerConnectionFactory>();
+        services.AddScoped<SqlServerAssessor>();
+        var provider = services.BuildServiceProvider();
+        var factory = new AssessmentEngineFactory(provider);
+
+        // Act
+        var engine = factory.Create(DatabasePlatform.PostgreSql);
+
+        // Assert
+        Assert.NotNull(engine);
+        Assert.IsType<PostgreSqlAssessor>(engine);
+        Assert.Equal("PostgreSql", engine.SourcePlatform);
+    }
+
+    [Fact]
     public void AssessmentFactory_Create_Unsupported_Throws_NotSupportedException()
     {
         // Arrange
@@ -39,9 +62,9 @@ public class EngineFactoryTests
         var provider = services.BuildServiceProvider();
         var factory = new AssessmentEngineFactory(provider);
 
-        // Act & Assert
-        var ex = Assert.Throws<NotSupportedException>(() => factory.Create(DatabasePlatform.PostgreSql));
-        Assert.Contains("PostgreSql", ex.Message);
+        // Act & Assert — use an undefined enum value to test unsupported platform
+        var ex = Assert.Throws<NotSupportedException>(() => factory.Create((DatabasePlatform)99));
+        Assert.Contains("99", ex.Message);
     }
 
     [Fact]
@@ -60,7 +83,7 @@ public class EngineFactoryTests
     }
 
     [Fact]
-    public void AssessmentFactory_SupportedPlatforms_Does_Not_Include_PostgreSql()
+    public void AssessmentFactory_SupportedPlatforms_Includes_PostgreSql()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -71,7 +94,7 @@ public class EngineFactoryTests
         var platforms = factory.SupportedPlatforms;
 
         // Assert
-        Assert.DoesNotContain(DatabasePlatform.PostgreSql, platforms);
+        Assert.Contains(DatabasePlatform.PostgreSql, platforms);
     }
 
     #endregion
@@ -144,7 +167,7 @@ public class EngineFactoryTests
     #region Error message content
 
     [Theory]
-    [InlineData(DatabasePlatform.PostgreSql)]
+    [InlineData((DatabasePlatform)99)]
     public void AssessmentFactory_Create_Unsupported_Message_Contains_Platform(DatabasePlatform platform)
     {
         // Arrange
