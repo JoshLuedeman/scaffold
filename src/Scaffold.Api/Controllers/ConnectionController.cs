@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 
 namespace Scaffold.Api.Controllers;
@@ -10,11 +11,11 @@ namespace Scaffold.Api.Controllers;
 [Route("api/connections")]
 public class ConnectionController : ControllerBase
 {
-    private readonly IAssessmentEngine _assessmentEngine;
+    private readonly IAssessmentEngineFactory _assessmentEngineFactory;
 
-    public ConnectionController(IAssessmentEngine assessmentEngine)
+    public ConnectionController(IAssessmentEngineFactory assessmentEngineFactory)
     {
-        _assessmentEngine = assessmentEngine;
+        _assessmentEngineFactory = assessmentEngineFactory;
     }
 
     [HttpPost("test")]
@@ -30,9 +31,11 @@ public class ConnectionController : ControllerBase
             Password = request.Password,
             KeyVaultSecretUri = request.KeyVaultSecretUri,
             TrustServerCertificate = request.TrustServerCertificate,
+            Platform = request.Platform,
         };
 
-        var success = await _assessmentEngine.TestConnectionAsync(connectionInfo);
+        var assessmentEngine = _assessmentEngineFactory.Create(connectionInfo.Platform);
+        var success = await assessmentEngine.TestConnectionAsync(connectionInfo);
         return Ok(new { success });
     }
 }
@@ -45,4 +48,5 @@ public record ConnectionTestRequest(
     string? Username = null,
     string? Password = null,
     string? KeyVaultSecretUri = null,
-    bool TrustServerCertificate = false);
+    bool TrustServerCertificate = false,
+    DatabasePlatform Platform = DatabasePlatform.SqlServer);

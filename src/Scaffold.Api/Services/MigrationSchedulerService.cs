@@ -77,7 +77,7 @@ public class MigrationSchedulerService : BackgroundService
     {
         var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
         var projectRepo = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
-        var migrationEngine = scope.ServiceProvider.GetRequiredService<IMigrationEngine>();
+        var migrationEngineFactory = scope.ServiceProvider.GetRequiredService<IMigrationEngineFactory>();
         var progressService = scope.ServiceProvider.GetRequiredService<MigrationProgressService>();
         var validationEngine = scope.ServiceProvider.GetRequiredService<ValidationEngine>();
 
@@ -117,6 +117,7 @@ public class MigrationSchedulerService : BackgroundService
         try
         {
             Core.Models.MigrationResult result;
+            var migrationEngine = migrationEngineFactory.Create(plan.SourcePlatform);
 
             if (plan.Strategy == MigrationStrategy.ContinuousSync)
             {

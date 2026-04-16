@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Scaffold.Api.Services;
 using Scaffold.Api.Tests.Infrastructure;
 using Scaffold.Core.Enums;
+using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 using Scaffold.Infrastructure.Data;
 
@@ -29,7 +30,7 @@ public class MigrationSchedulerServiceTests : IClassFixture<CustomWebApplication
         services.AddDbContext<ScaffoldDbContext>(o => o.UseInMemoryDatabase(dbName));
 
         // Add stub services needed by the scheduler
-        services.AddScoped<Core.Interfaces.IMigrationEngine, StubMigrationEngine>();
+        services.AddScoped<IMigrationEngineFactory, StubMigrationEngineFactory>();
         services.AddScoped<Core.Interfaces.IProjectRepository>(sp =>
         {
             var db = sp.GetRequiredService<ScaffoldDbContext>();
@@ -95,7 +96,7 @@ public class MigrationSchedulerServiceTests : IClassFixture<CustomWebApplication
         var dbName = Guid.NewGuid().ToString();
         var services = new ServiceCollection();
         services.AddDbContext<ScaffoldDbContext>(o => o.UseInMemoryDatabase(dbName));
-        services.AddScoped<Core.Interfaces.IMigrationEngine, StubMigrationEngine>();
+        services.AddScoped<IMigrationEngineFactory, StubMigrationEngineFactory>();
         services.AddScoped<Core.Interfaces.IProjectRepository>(sp =>
             new Scaffold.Infrastructure.Repositories.ProjectRepository(
                 sp.GetRequiredService<ScaffoldDbContext>()));
@@ -158,7 +159,7 @@ public class MigrationSchedulerServiceTests : IClassFixture<CustomWebApplication
         var dbName = Guid.NewGuid().ToString();
         var services = new ServiceCollection();
         services.AddDbContext<ScaffoldDbContext>(o => o.UseInMemoryDatabase(dbName));
-        services.AddScoped<Core.Interfaces.IMigrationEngine, StubMigrationEngine>();
+        services.AddScoped<IMigrationEngineFactory, StubMigrationEngineFactory>();
         services.AddScoped<Core.Interfaces.IProjectRepository>(sp =>
             new Scaffold.Infrastructure.Repositories.ProjectRepository(
                 sp.GetRequiredService<ScaffoldDbContext>()));

@@ -14,16 +14,16 @@ namespace Scaffold.Api.Controllers;
 public class AssessmentController : ControllerBase
 {
     private readonly IProjectRepository _projectRepository;
-    private readonly IAssessmentEngine _assessmentEngine;
+    private readonly IAssessmentEngineFactory _assessmentEngineFactory;
     private readonly ScaffoldDbContext _dbContext;
 
     public AssessmentController(
         IProjectRepository projectRepository,
-        IAssessmentEngine assessmentEngine,
+        IAssessmentEngineFactory assessmentEngineFactory,
         ScaffoldDbContext dbContext)
     {
         _projectRepository = projectRepository;
-        _assessmentEngine = assessmentEngine;
+        _assessmentEngineFactory = assessmentEngineFactory;
         _dbContext = dbContext;
     }
 
@@ -82,7 +82,8 @@ public class AssessmentController : ControllerBase
             project.Status = ProjectStatus.Assessing;
             await _projectRepository.UpdateAsync(project);
 
-            var report = await _assessmentEngine.AssessAsync(project.SourceConnection, ct);
+            var assessmentEngine = _assessmentEngineFactory.Create(project.SourceConnection.Platform);
+            var report = await assessmentEngine.AssessAsync(project.SourceConnection, ct);
             report.ProjectId = projectId;
 
             // Replace existing assessment if present

@@ -62,9 +62,7 @@ builder.Services.AddHttpClient<AzurePricingService>();
 builder.Services.AddScoped<IAzurePricingService, AzurePricingService>();
 
 builder.Services.AddSingleton<SqlServerConnectionFactory>();
-builder.Services.AddScoped<IAssessmentEngine, SqlServerAssessor>();
 builder.Services.AddScoped<SqlServerAssessor>();
-builder.Services.AddScoped<IMigrationEngine, SqlServerMigrator>();
 builder.Services.AddScoped<SqlServerMigrator>();
 builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
 builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();

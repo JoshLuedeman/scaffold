@@ -17,20 +17,20 @@ public class MigrationController : ControllerBase
 {
     private readonly IProjectRepository _projectRepository;
     private readonly ScaffoldDbContext _dbContext;
-    private readonly IMigrationEngine _migrationEngine;
+    private readonly IMigrationEngineFactory _migrationEngineFactory;
     private readonly MigrationProgressService _progressService;
     private readonly ValidationEngine _validationEngine;
 
     public MigrationController(
         IProjectRepository projectRepository,
         ScaffoldDbContext dbContext,
-        IMigrationEngine migrationEngine,
+        IMigrationEngineFactory migrationEngineFactory,
         MigrationProgressService progressService,
         ValidationEngine validationEngine)
     {
         _projectRepository = projectRepository;
         _dbContext = dbContext;
-        _migrationEngine = migrationEngine;
+        _migrationEngineFactory = migrationEngineFactory;
         _progressService = progressService;
         _validationEngine = validationEngine;
     }
@@ -84,6 +84,7 @@ public class MigrationController : ControllerBase
             }
 
             // Start migration as a background task
+            var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform);
             _ = Task.Run(async () =>
             {
                 try
@@ -95,12 +96,12 @@ public class MigrationController : ControllerBase
 
                     if (plan.Strategy == MigrationStrategy.ContinuousSync)
                     {
-                        await _migrationEngine.StartContinuousSyncAsync(plan, _progressService, ct);
+                        await migrationEngine.StartContinuousSyncAsync(plan, _progressService, ct);
                         // For continuous sync, the result comes from CompleteCutoverAsync later
                         return;
                     }
 
-                    result = await _migrationEngine.ExecuteCutoverAsync(plan, _progressService, ct);
+                    result = await migrationEngine.ExecuteCutoverAsync(plan, _progressService, ct);
                     result.Id = migrationId;
 
                     // Run post-migration validation
@@ -168,7 +169,8 @@ public class MigrationController : ControllerBase
             if (project.MigrationPlan?.Strategy != MigrationStrategy.ContinuousSync)
                 return BadRequest("Cutover is only available for continuous sync migrations.");
 
-            var result = await _migrationEngine.CompleteCutoverAsync(migrationId, ct);
+            var migrationEngine = _migrationEngineFactory.Create(project.MigrationPlan.SourcePlatform);
+            var result = await migrationEngine.CompleteCutoverAsync(migrationId, ct);
 
             // Run post-cutover validation
             var plan = project.MigrationPlan;

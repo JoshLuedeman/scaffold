@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 using Scaffold.Infrastructure.Data;
@@ -51,15 +52,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     internal static void ReplaceExternalServices(IServiceCollection services)
     {
-        var migrationEngineDescriptor = services.SingleOrDefault(
-            d => d.ServiceType == typeof(IMigrationEngine));
-        if (migrationEngineDescriptor != null) services.Remove(migrationEngineDescriptor);
-        services.AddScoped<IMigrationEngine, StubMigrationEngine>();
+        // Replace engine factories with stubs (controllers now use factories, not direct engines)
+        var assessmentFactoryDescriptor = services.SingleOrDefault(
+            d => d.ServiceType == typeof(IAssessmentEngineFactory));
+        if (assessmentFactoryDescriptor != null) services.Remove(assessmentFactoryDescriptor);
+        services.AddScoped<IAssessmentEngineFactory, StubAssessmentEngineFactory>();
 
-        var assessmentEngineDescriptor = services.SingleOrDefault(
-            d => d.ServiceType == typeof(IAssessmentEngine));
-        if (assessmentEngineDescriptor != null) services.Remove(assessmentEngineDescriptor);
-        services.AddScoped<IAssessmentEngine, StubAssessmentEngine>();
+        var migrationFactoryDescriptor = services.SingleOrDefault(
+            d => d.ServiceType == typeof(IMigrationEngineFactory));
+        if (migrationFactoryDescriptor != null) services.Remove(migrationFactoryDescriptor);
+        services.AddScoped<IMigrationEngineFactory, StubMigrationEngineFactory>();
 
         var validationDescriptor = services.SingleOrDefault(
             d => d.ServiceType == typeof(ValidationEngine));
@@ -208,4 +210,22 @@ public class StubAssessmentEngine : IAssessmentEngine
             Reasoning = "Stub recommendation"
         });
     }
+}
+
+/// <summary>
+/// Stub IAssessmentEngineFactory that returns a StubAssessmentEngine for any platform.
+/// </summary>
+public class StubAssessmentEngineFactory : IAssessmentEngineFactory
+{
+    public IAssessmentEngine Create(DatabasePlatform platform) => new StubAssessmentEngine();
+    public IEnumerable<DatabasePlatform> SupportedPlatforms => [DatabasePlatform.SqlServer];
+}
+
+/// <summary>
+/// Stub IMigrationEngineFactory that returns a StubMigrationEngine for any platform.
+/// </summary>
+public class StubMigrationEngineFactory : IMigrationEngineFactory
+{
+    public IMigrationEngine Create(DatabasePlatform platform) => new StubMigrationEngine();
+    public IEnumerable<DatabasePlatform> SupportedPlatforms => [DatabasePlatform.SqlServer];
 }
