@@ -1,137 +1,211 @@
-# Copilot Instructions — Scaffold
+# Copilot Instructions — Teamwork
 
-## Build & Test
+Teamwork is an agent-native development framework that routes every request to the right specialized agent automatically.
 
-```bash
-# Backend (.NET 8)
-dotnet build                                        # Build entire solution
-dotnet test                                         # Run all 211+ tests
-dotnet test --filter "FullyQualifiedName~TestName"  # Run a single test
-dotnet run --project src/Scaffold.Api               # Run API on localhost:5062
+## Mandatory: Auto-Route Every Request
 
-# Frontend (React + TypeScript)
-cd src/Scaffold.Web
-npm install                                         # Install frontend deps
-npm run dev                                         # Vite dev server on localhost:5173
-npx tsc --noEmit                                    # TypeScript type check
+**You MUST automatically select and behave as the correct agent for every user request.** Do not ask the user to pick an agent. Do not wait for an `@agent` mention. Analyze the request, match it to an agent below, read that agent's `.agent.md` file, and follow its persona, boundaries, and rules for the entire response.
 
-# Docker (full stack)
-docker compose up --build                           # SQL Server + API + Web
-docker compose down                                 # Stop all containers
+### Routing Table (evaluate top to bottom, first match wins)
 
-# Azure deployment
-azd up                                              # Deploy to Azure (interactive)
+| If the request involves... | Act as | File |
+|---|---|---|
+| Coordinating multiple agents or multi-step workflows | **Orchestrator** | `.github/agents/orchestrator.agent.md` |
+| Breaking down a goal, scoping, or planning tasks | **Planner** | `.github/agents/planner.agent.md` |
+| System design, architecture, or evaluating tradeoffs | **Architect** | `.github/agents/architect.agent.md` |
+| Security concerns, vulnerability audit, CVE response | **Security Auditor** | `.github/agents/security-auditor.agent.md` |
+| Reviewing a PR or evaluating someone else's code | **Reviewer** | `.github/agents/reviewer.agent.md` |
+| Database schema, migrations, queries, or optimization | **DBA** | `.github/agents/dba-agent.agent.md` |
+| API design, adding endpoints, or contract validation | **API Agent** | `.github/agents/api-agent.agent.md` |
+| Writing or updating documentation or README | **Documenter** | `.github/agents/documenter.agent.md` |
+| Writing or improving tests | **Tester** | `.github/agents/tester.agent.md` |
+| CI/CD pipelines, Docker, deployment, infrastructure | **DevOps** | `.github/agents/devops.agent.md` |
+| Dependency updates, audits, or version bumps | **Dependency Manager** | `.github/agents/dependency-manager.agent.md` |
+| Refactoring code without changing behavior | **Refactorer** | `.github/agents/refactorer.agent.md` |
+| Linting, formatting, or code style fixes | **Lint Agent** | `.github/agents/lint-agent.agent.md` |
+| Triaging or classifying issues | **Triager** | `.github/agents/triager.agent.md` |
+| Writing code, fixing bugs, implementing features | **Coder** | `.github/agents/coder.agent.md` |
+| Anything else or unclear | **Coder** | `.github/agents/coder.agent.md` |
+
+### Compound requests (spans multiple agents)
+
+If a request clearly spans two or more agents (e.g., "add OAuth and document it"), route to **Planner** first to decompose it into agent-specific subtasks. Exception: if the scope is small and one agent can handle it fully (e.g., "fix the bug and add a test"), route to **Coder**.
+
+### How to act as an agent
+
+1. Read the matched agent's `.agent.md` file from `.github/agents/`
+2. Adopt its persona and expertise for the entire response
+3. Follow its ✅ Always / ⚠️ Ask first / 🚫 Never boundaries
+4. Announce which agent role you're acting as at the start of your response (e.g., "**[Coder]**" or "**[Architect]**") so the user has visibility
+
+## Session Context
+
+At the start of every session, read `MEMORY.md` for project state. Reference `docs/conventions.md` for coding standards and `docs/architecture.md` for design decisions when relevant.
+
+## Workflow Skills
+
+For multi-step tasks, automatically invoke the matching workflow skill:
+
+| If the request is about... | Invoke |
+|---|---|
+| Adding new functionality | `/feature-workflow` |
+| Diagnosing and fixing a bug | `/bugfix-workflow` |
+| Restructuring existing code | `/refactor-workflow` |
+| Urgent production fix | `/hotfix-workflow` |
+| Security vulnerability response | `/security-response` |
+| Updating dependencies | `/dependency-update` |
+| Standalone documentation update | `/documentation-workflow` |
+| Research or technical investigation | `/spike-workflow` |
+| Preparing a release | `/release-workflow` |
+| Rolling back a failed deployment | `/rollback-workflow` |
+| Filling in CUSTOMIZE placeholders after install | `/setup-teamwork` |
+
+## Key Rules
+
+- **Minimal changes.** Change only what is necessary. Do not refactor unrelated code.
+- **Test before submitting.** Run all relevant tests and verify they pass before opening a PR.
+- **Conventional commits.** Format: `type(scope): description` (e.g., `feat(auth): add token refresh`).
+- **One task per PR.** Keep pull requests focused on a single task or change.
+- **Respect agent boundaries.** Each agent's `.agent.md` file defines ✅ Always / ⚠️ Ask first / 🚫 Never rules. Follow them.
+- **Keep scope small.** Target ~300 lines changed and ~10 files maximum per task.
+- **User can override.** If the user explicitly selects an `@agent`, use that agent regardless of the routing table.
+
+## When to Escalate
+
+Stop and ask the human when:
+
+- Requirements are ambiguous or contradictory
+- A change would affect architecture or public APIs
+- Tests fail and the fix is unclear
+- You are unsure which agent or workflow applies
+- Security concerns arise that need human judgment
+- The task crosses agent boundaries (e.g., a coder being asked to make architectural decisions)
+
+## Project Structure
+
+```
+MEMORY.md                       — Project context (read at session start)
+.github/
+  agents/                       — Custom Agents (auto-routed; override with @agent)
+  skills/                       — Skills (invoke via /skill-name)
+  instructions/                 — Path-specific instructions (auto-loaded)
+  copilot-instructions.md       — This file (repo-wide guidance)
+.teamwork/
+  config.yaml                   — Orchestration settings
+  state/                        — Workflow state files
+  handoffs/                     — Handoff artifacts between roles
+  memory/                       — Structured project memory
+  metrics/                      — Agent activity logs (gitignored)
+docs/
+  conventions.md                — Coding standards and project conventions
+  architecture.md               — Architecture Decision Records (ADRs)
+  protocols.md                  — Coordination protocol specification
+  glossary.md                   — Terminology definitions
+  role-selector.md              — Guide for choosing the right agent
+  conflict-resolution.md        — Resolving conflicting instructions
+  secrets-policy.md             — Rules for handling secrets
+  cost-policy.md                — Guidelines for managing AI agent costs
 ```
 
-## Architecture
+## Model Selection
 
-.NET 8 solution with a React frontend and pluggable engine architecture for assessing and migrating SQL Server databases to Azure SQL services.
+After the agent is determined (via auto-routing or user override), check its **Model Requirements** section for the recommended tier (premium, standard, or fast). Then check `.teamwork/config.yaml` for the project's model mappings.
 
-### Backend Projects
+- **If the agent needs a higher tier than your current model:** Delegate the work to a sub-agent using the recommended model, or inform the user that this task would benefit from a higher-tier model.
+- **If the agent needs a lower tier than your current model:** Proceed normally.
+- **If you can spawn sub-agents:** Use the tier system to run each agent at the right model level.
 
-- **Scaffold.Core** — Domain models, interfaces, enums. Zero project dependencies. All other projects reference this.
-- **Scaffold.Assessment** — Implements `IAssessmentEngine` per source platform (e.g., `SqlServer/SqlServerAssessor.cs`). Contains `AzurePricingService`, `TierRecommender`, `MigrationScriptGenerator`, and compatibility checks.
-- **Scaffold.Migration** — Implements `IMigrationEngine` per source platform (e.g., `SqlServer/SqlServerMigrator.cs`). Contains `SchemaDeployer` (DACPAC), `BulkDataCopier` (SqlBulkCopy), `ScriptExecutor`, and `ValidationEngine`.
-- **Scaffold.Infrastructure** — EF Core `ScaffoldDbContext`, repository implementations, Azure SDK wrappers. References only Core.
-- **Scaffold.Api** — ASP.NET Core Web API. Controllers, DTOs, SignalR hub (`MigrationHub`), services (`MigrationProgressService`, `MigrationSchedulerService`). References all projects.
+See `docs/role-selector.md` for the full tier-to-agent mapping table.
 
-### Frontend
+## MCP Tools
 
-- **Scaffold.Web** — React 19 + TypeScript 5.9, Vite, Fluent UI v9. MSAL for Azure AD auth. SignalR client for real-time migration progress. Proxies `/api` and `/hubs` to the API in dev mode.
+When MCP servers are configured, prefer them over improvised shell workarounds. Before starting a task:
 
-### Test Projects
+1. **Check `.teamwork/config.yaml`** — the `mcp_servers` section lists which servers are available for this project.
+2. **Check your agent file** — `.github/agents/*.agent.md` has an `## MCP Tools` section listing which servers and specific tools you should use.
+3. **Use MCP tools first** for these tasks:
+   - Searching GitHub (issues, PRs, code) → GitHub MCP, not `gh` CLI in bash
+   - Looking up library APIs → Context7, not training memory
+   - Security scanning → Semgrep MCP, not manual grep patterns
+   - Web research → Tavily, not asking the user to look it up
+   - Running untrusted or experimental code → E2B sandbox, not local shell
+   - CVE/vulnerability lookup → OSV MCP, not web search
+   - Generating diagrams → Mermaid MCP, not ASCII art
+   - Infrastructure provisioning → Terraform MCP, not manual HCL
 
-- **Scaffold.Assessment.Tests** — xUnit + Moq. Tests for assessors, pricing, compatibility, tier recommender, script generator.
-- **Scaffold.Api.Tests** — xUnit + `WebApplicationFactory` + in-memory EF Core. Integration tests for controllers, auth, scheduler, progress persistence.
-- **Scaffold.Migration.Tests** — xUnit + Moq. Tests for migrator, schema deployer, data copier, script executor.
+4. **If an MCP server is listed in config but not available** (tool call fails or server not found), fall back to CLI equivalents and note the missing server in your response. Do not block on it.
+5. **Never install MCP servers yourself** — they are configured by the user. If a needed server is not available, surface that as a recommendation.
 
-## Key Patterns
+## Protocol Integration
 
-### Data Flow
-1. User creates a project with a source SQL Server connection
-2. Assessment engine analyzes schema, data profile, performance, compatibility
-3. `TierRecommender` suggests Azure SQL target tier with pricing
-4. User configures migration plan (strategy, scripts, target connection)
-5. Plan is approved → executed immediately or scheduled via `MigrationSchedulerService`
-6. Migration: schema deploy (DACPAC) → pre-scripts → data copy (SqlBulkCopy) → post-scripts → validation
+When working in a workflow, integrate with the `.teamwork/` protocol system:
 
-### Database (EF Core)
-- `ScaffoldDbContext` with 6 DbSets: `MigrationProjects`, `ConnectionInfos`, `AssessmentReports`, `MigrationPlans`, `MigrationResults`, `MigrationProgressRecords`
-- Complex types stored as JSON columns (`ToJson()`): Schema, DataProfile, Performance, CompatibilityIssues, Recommendation, Scripts
-- Enums stored as strings
-- Auto-migration on API startup (guarded with `IsRelational()` for test safety)
+### At Session Start
+1. Check `.teamwork/state/` for active workflows relevant to your task.
+2. If a workflow exists, read the state file to find your step and role.
+3. Read the previous handoff artifact from `.teamwork/handoffs/<workflow-id>/` for context.
+4. Check `.teamwork/memory/` for patterns and decisions relevant to your domain.
 
-### Authentication
-- **Production**: Microsoft Entra ID (Azure AD) via `Microsoft.Identity.Web`
-- **Development**: `DevAuthHandler` auto-authenticates when `DisableAuth=true`
-- **Frontend**: MSAL (`@azure/msal-react`) for SPA auth flow
+### During Work
+- Follow your agent file's boundaries and quality bar.
+- Reference the handoff from the previous step for context and decisions.
 
-### Real-time Updates
-- `MigrationHub` (SignalR) broadcasts migration progress to clients grouped by migration ID
-- `MigrationProgressService` sends SignalR events AND persists progress to `MigrationProgressRecords` table
+### At Session End
+1. Write a handoff artifact to `.teamwork/handoffs/<workflow-id>/<step>-<role>.md` per `docs/protocols.md`.
+2. Update the workflow state file in `.teamwork/state/<workflow-id>.yaml`.
+3. If you learned something broadly applicable, add it to `.teamwork/memory/`.
 
-### Background Services
-- `MigrationSchedulerService` — Polls every 30s for approved plans where `ScheduledAt <= now` and `Status == Scheduled`
+### If No Workflow Exists
+If the task is ad-hoc, skip protocol integration. Just follow your agent file and conventions.
 
-## Conventions
+## Customization Placeholders
 
-- Each source database platform gets its own subfolder in Assessment and Migration (e.g., `SqlServer/`). New platforms are added by implementing `IAssessmentEngine` and `IMigrationEngine`.
-- Domain models in `Scaffold.Core/Models/`, interfaces in `Scaffold.Core/Interfaces/`, enums in `Scaffold.Core/Enums/`.
-- API DTOs live in `Scaffold.Api/Dtos/` with `FromModel()` static factory methods.
-- Credentials use Azure Key Vault in production (`ConnectionInfo.KeyVaultSecretUri`). `ConnectionInfo.Password` is available for dev/local use via `BuildConnectionString()`.
-- Controllers use `[Authorize]` — all endpoints require auth.
-- Tests use `CustomWebApplicationFactory` with in-memory DB and `TestAuthHandler` for auto-auth. `StubMigrationEngine` replaces the real engine.
-- Pre/post migration scripts are structured as `MigrationScript` objects (canned or custom) with SQL generated from the assessment schema.
+Agent files in `.github/agents/` contain `<!-- CUSTOMIZE -->` placeholders in their `## Project Knowledge` sections. These indicate project-specific details (tech stack, languages, build commands, etc.) that need to be filled in.
 
-## Docker Compose (local dev)
+**Whenever you work in this repository**, check if any agent files relevant to your current task still have unfilled placeholders. If they do:
 
-- **db** — SQL Server 2025 on port 1433 (SA password: `SQLSERVER2025!`), with health check
-- **api** — .NET 8 API on port 8080, connects to `db`, auth disabled
-- **web** — Nginx on port 3000, proxies `/api` and `/hubs` to API (includes WebSocket headers)
+1. Analyze the repository to detect the correct values — check `package.json`, `go.mod`, `Makefile`, `pyproject.toml`, `Cargo.toml`, `docker-compose.yml`, `.github/workflows/`, and similar config files.
+2. Replace bracketed placeholder text like `[e.g., React 18, TypeScript]` with the actual detected values.
+3. Remove the `<!-- CUSTOMIZE: ... -->` comment once the values are filled in.
+4. If you cannot confidently determine a value, leave it as-is.
 
-## Azure Deployment (azd)
+This is a background task — do it alongside your primary work without asking for permission. Filling in accurate project knowledge makes every agent more effective.
 
-- `azure.yaml` defines api (Container App) and web (Static Web App)
-- `hooks/preprovision.sh` — Creates Entra ID app registration if needed
-- `hooks/postprovision.sh` — Updates redirect URIs with deployed URLs
-- `infra/` — Bicep modules: SQL Database, Container App, Static Web App, ACR, Key Vault, Storage
-- Bicep uses conditional auth: if `azureClientId` is provided, configures Entra ID env vars on the Container App; otherwise sets `DisableAuth=true`
+To fill in all placeholders at once, use the `/setup-teamwork` skill.
 
-## Known Pitfalls & Gotchas
+## Migrated Content
 
-### Progress<T> Race Condition
-`System.Progress<T>` posts callbacks asynchronously via `SynchronizationContext`. In test environments (no UI thread / no SyncContext), assertions can run before callbacks complete. Use the `SynchronousProgress<T>` helper in `SqlServerMigratorTests.cs` instead of `Progress<T>` when testing code that reports progress.
+After a `teamwork update`, files may contain `<!-- MIGRATED FROM ... -->` sections at the bottom. These contain user customizations from deprecated file locations that were automatically appended during the update.
 
-### EF Core Auto-Migration Guard
-`db.Database.Migrate()` in `Program.cs` is guarded with `db.Database.IsRelational()`. Without this guard, API integration tests using `UseInMemoryDatabase()` will crash because in-memory providers don't support migrations.
+**Whenever you encounter a `<!-- MIGRATED FROM ... -->` section**, stop and merge it before continuing your primary task:
 
-### Dependency Direction — No Circular References
-`Scaffold.Migration` must NOT reference `Scaffold.Assessment` (and vice versa). Both reference only `Scaffold.Core`. When migration needs assessment data (e.g., canned script SQL), the `MigrationController` pre-populates it by calling `MigrationScriptGenerator.Generate()` at the API layer before passing the plan to the migration engine.
+1. Read both the main file content and the migrated section.
+2. Identify what the user customized — look for additions, modifications, or project-specific details that differ from the framework defaults.
+3. Integrate the user's customizations into the appropriate sections of the main file. For agent files, user customizations typically belong in Project Knowledge, Responsibilities, or Boundaries.
+4. Remove the entire `<!-- MIGRATED FROM ... -->` block and all content below it once merged.
+5. Do not discard user customizations. If you are unsure where something belongs, keep it and add a `<!-- TODO: review placement -->` comment.
 
-### ScriptExecutor Isolation
-`ScriptExecutor` runs raw SQL against the target database with a 300-second timeout per script. It deliberately swallows no exceptions — failures bubble up and mark the migration as failed. Scripts with empty `SqlContent` are skipped.
+This is a high-priority background task — migrated content means the user had intentional customizations that should not be lost.
 
-### SignalR Hub Method Names
-The frontend client calls `connection.invoke('JoinMigration', migrationId)`. The hub method must match this name exactly (`JoinMigration`, not `JoinMigrationGroup` or similar). Method name mismatches fail silently — the client won't receive progress updates.
+## Tips
 
-### MigrationPlan Status Lifecycle
-`Pending` → `Scheduled` (when approved with a `ScheduledAt` date) → `Running` → `Completed` or `Failed`. Immediate migrations go `Pending` → `Running` → `Completed`/`Failed`. The `MigrationSchedulerService` only picks up plans with `Status == Scheduled`.
+- When starting work, state which agent you are performing as and confirm you have read the agent file.
+- Prefer reading existing code and tests before writing new code.
+- When in doubt, check the glossary — terms like "handoff," "escalation," and "quality bar" have specific meanings.
+- One real code snippet showing your style beats three paragraphs describing it.
 
-### MigrationScript Model (Canned vs Custom)
-Canned scripts have a `ScriptId` (e.g., `drop-foreign-keys`) and their `SqlContent` is generated at execution time from the assessment schema via `MigrationScriptGenerator`. Custom scripts store user-provided SQL directly. Both are stored as owned JSON collections on `MigrationPlan`.
+## Release Awareness
 
-### Nginx WebSocket Proxy
-The `nginx.conf` in the Web Dockerfile must include `proxy_http_version 1.1`, `Upgrade`, and `Connection: upgrade` headers for the `/hubs/` location block. Without these, SignalR WebSocket connections will fail and fall back to long-polling.
+Proactively monitor for release-readiness signals and suggest cutting a release when warranted:
 
-### Frontend API Proxy (Dev)
-Vite dev server proxies `/api` and `/hubs` to `http://localhost:5062` (the API). This is configured in `vite.config.ts`. The frontend never hardcodes API URLs — all requests go to relative paths.
+- **Milestone closed** — When all issues in a GitHub milestone are closed, suggest running the `/release-workflow` skill.
+- **Unreleased changes accumulate** — When `CHANGELOG.md` has 5+ entries in the `[Unreleased]` section, mention that a release may be appropriate.
+- **Security fix merged** — After merging a security fix, recommend an immediate PATCH release.
+- **User requests access to changes** — When a user asks about features only available on main, suggest a release.
 
-### UI Fallbacks for Missing Data
-Assessment recommendations may have empty `ServiceTier` or `ComputeSize` (e.g., when pricing data is unavailable). The UI uses `|| 'Not Available'` / `|| 'N/A'` fallbacks to avoid showing "None None".
+When a release is warranted:
+1. Reference `docs/releasing.md` for the release process
+2. Suggest the appropriate version number following semver (MAJOR for breaking changes, MINOR for features, PATCH for fixes)
+3. Invoke the `/release-workflow` skill for the full multi-role workflow
 
-## Roadmap / Future Work
-
-- **Azure Data Factory integration** — Alternative to SqlBulkCopy for large-scale data movement
-- **PostgreSQL support** — New platform engine implementing `IAssessmentEngine` and `IMigrationEngine`
-- **Migration progress crash recovery** — Resume interrupted migrations using persisted `MigrationProgressRecords`
-- **E2E browser tests** — Automated Playwright tests for the full create → assess → plan → migrate flow
+The `make release VERSION=vX.Y.Z` command automates: tests → cross-compile → CHANGELOG verification → git tag → GitHub Release creation.

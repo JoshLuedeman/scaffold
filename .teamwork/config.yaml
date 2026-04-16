@@ -1,0 +1,183 @@
+# .teamwork/config.yaml — Project orchestration settings
+#
+# This file configures how the orchestrator coordinates agents and workflows.
+# Customize it for your project's needs.
+
+# Project identity
+project:
+  name: "scaffold"
+  repo: "joshluedeman/scaffold"
+
+# Active roles — only these roles participate in workflows
+roles:
+  core:
+    - planner
+    - architect
+    - coder
+    - tester
+    - reviewer
+    - security-auditor
+    - documenter
+    - orchestrator
+  optional:
+    - devops
+    - dba-agent
+    - refactorer
+    - dependency-manager
+
+# Workflow customizations
+workflows:
+  # Skip steps for specific workflow types
+  skip_steps:
+    documentation:
+      - security-auditor            # Docs-only changes don't need security audit
+    spike:
+      - tester                      # Spikes produce research, not testable code
+      - security-auditor
+
+  # Custom quality gates for Scaffold
+  extra_gates:
+    dotnet-build:
+      name: ".NET Build"
+      command: "dotnet build --configuration Release"
+      on_step: [coder, refactorer]
+    dotnet-test:
+      name: ".NET Tests"
+      command: "dotnet test --configuration Release"
+      on_step: [coder, tester, refactorer]
+    frontend-typecheck:
+      name: "Frontend Typecheck"
+      command: "cd src/Scaffold.Web && npx tsc --noEmit"
+      on_step: [coder, refactorer]
+
+# Quality gate defaults (apply to all workflows unless overridden)
+quality_gates:
+  handoff_complete: true            # All handoff sections must be populated
+  tests_pass: true                  # Tests must pass before handoff
+  lint_pass: true                   # Linting must pass before handoff
+
+# Memory settings
+memory:
+  archive_threshold: 50             # Archive entries when file exceeds this count
+  sync_to_memory_md: true           # Keep MEMORY.md in sync with structured memory
+
+# Model tier configuration
+# Map abstract tiers to actual model identifiers for your provider.
+# Roles reference tiers (premium/standard/fast) — configure actual models here.
+# See docs/role-selector.md for tier-to-role mapping and rationale.
+model_tiers:
+  premium: "claude-sonnet-4"          # Best reasoning — planning, architecture, coding, security
+  standard: "claude-sonnet-4"         # Balanced — testing, review
+  fast: "claude-haiku-4.5"            # Speed/cost — documentation, orchestration
+
+# Override the tier for specific roles (optional)
+# Uncomment to assign a specific model to a role, bypassing the tier system.
+# role_models:
+#   architect: "claude-opus-4.6"      # Upgrade architect to opus for critical projects
+#   coder: "claude-opus-4.6"          # Upgrade coder when code quality is paramount
+#   documenter: "gpt-5-mini"          # Use a different provider for docs
+
+# MCP server definitions
+# Agents check this section to know which MCP tools are available.
+# Install only the servers your workflow needs.
+mcp_servers:
+  github:
+    description: "GitHub repos, PRs, issues, CI workflows, Dependabot alerts"
+    url: "https://api.githubcopilot.com/mcp/"
+    roles: [planner, architect, coder, tester, reviewer, security-auditor, documenter, orchestrator]
+    env_vars: [GH_TOKEN]
+    install: "gh extension install github/gh-mcp"
+
+  context7:
+    description: "Real-time library documentation — prevents API hallucination"
+    url: "https://mcp.context7.com/mcp"
+    roles: [architect, coder, documenter]
+    env_vars: []
+    install: "npx -y @upstash/context7-mcp"
+
+  semgrep:
+    description: "SAST security scanning — 5000+ rules across 30+ languages"
+    command: "uvx semgrep-mcp"
+    roles: [security-auditor, reviewer, coder]
+    env_vars: [SEMGREP_APP_TOKEN]
+    install: "pip install semgrep-mcp"
+
+  tavily:
+    description: "Web search and content extraction for research tasks"
+    url: "https://mcp.tavily.com/mcp/"
+    roles: [planner, architect, security-auditor]
+    env_vars: [TAVILY_API_KEY]
+    install: "npx -y tavily-mcp"
+
+  e2b:
+    description: "Cloud-sandboxed Python and JavaScript code execution"
+    command: "uvx e2b-mcp"
+    roles: [coder, tester]
+    env_vars: [E2B_API_KEY]
+    install: "pip install e2b-mcp"
+
+  osv:
+    description: "Open Source Vulnerability database — CVEs by package and version"
+    command: "uvx osv-mcp"
+    roles: [security-auditor, reviewer]
+    env_vars: []
+    install: "pip install osv-mcp"
+
+  mermaid:
+    description: "Architecture and flow diagram generation from text descriptions"
+    command: "npx -y mermaid-mcp"
+    roles: [architect, documenter]
+    env_vars: []
+    install: "npm install -g mermaid-mcp"
+
+  terraform:
+    description: "Terraform Registry lookups, provider docs, module search, HCP workspace management"
+    command: "npx -y terraform-mcp-server@latest"
+    roles: [devops, architect]
+    env_vars: [TF_TOKEN]
+    install: "npx -y terraform-mcp-server@latest"
+
+  coverage:
+    description: "Test coverage report analysis — lcov, Istanbul, Go cover.out"
+    command: "uvx teamwork-mcp-coverage"
+    roles: [tester, reviewer, orchestrator]
+    env_vars: []
+    install: "pip install teamwork-mcp-coverage"
+
+  commits:
+    description: "Conventional commit message generation and validation from diffs"
+    command: "uvx teamwork-mcp-commits"
+    roles: [coder, reviewer, orchestrator]
+    env_vars: []
+    install: "pip install teamwork-mcp-commits"
+
+  adr:
+    description: "Architecture Decision Record search, creation, and management"
+    command: "uvx teamwork-mcp-adr"
+    roles: [architect, orchestrator, coder]
+    env_vars: []
+    install: "pip install teamwork-mcp-adr"
+
+  changelog:
+    description: "Changelog generation and release notes using git-cliff"
+    command: "uvx teamwork-mcp-changelog"
+    roles: [documenter, orchestrator, planner]
+    env_vars: []
+    install: "pip install teamwork-mcp-changelog"
+
+  complexity:
+    description: "Code complexity analysis — cyclomatic complexity for 30+ languages"
+    command: "uvx teamwork-mcp-complexity"
+    roles: [reviewer, tester, architect]
+    env_vars: []
+    install: "pip install teamwork-mcp-complexity"
+
+# Multi-repo coordination (hub-spoke model)
+# The repo where teamwork runs is the hub. Spoke repos are listed here.
+# repos:
+#   - name: "api"                   # Short identifier used in commands
+#     path: "../api"                # Local path (relative to hub root)
+#     repo: "owner/api"            # GitHub owner/repo slug
+#   - name: "frontend"
+#     path: "../frontend"
+#     repo: "owner/frontend"
