@@ -92,6 +92,39 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               { name: 'DisableAuth', value: 'true' }
             ]
           )
+          probes: [
+            {
+              type: 'startup'
+              httpGet: {
+                path: '/health'
+                port: 8080
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 30
+              timeoutSeconds: 5
+            }
+            {
+              type: 'liveness'
+              httpGet: {
+                path: '/health'
+                port: 8080
+              }
+              periodSeconds: 30
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: 8080
+              }
+              periodSeconds: 15
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+          ]
         }
       ]
       scale: {
