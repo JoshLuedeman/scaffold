@@ -6,8 +6,8 @@ namespace Scaffold.Migration.Tests;
 
 public class ChangeTrackingSyncEngineTests
 {
-    private const string FakeSource = "Server=fake-source;Database=TestDb;Encrypt=false;";
-    private const string FakeTarget = "Server=fake-target;Database=TestDb;Encrypt=false;";
+    private const string FakeSource = "Server=fake-source;Database=TestDb;Encrypt=false;Connect Timeout=1;";
+    private const string FakeTarget = "Server=fake-target;Database=TestDb;Encrypt=false;Connect Timeout=1;";
 
     #region Constructor / initial state
 

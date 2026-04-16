@@ -342,10 +342,16 @@ public class MigrationPlanController : ControllerBase
         {
             response = response with
             {
-                ExistingTargetConnectionString = _protector.Unprotect(response.ExistingTargetConnectionString)
+                ExistingTargetConnectionString = SafeUnprotect(response.ExistingTargetConnectionString)
             };
         }
         return response;
+    }
+
+    private string SafeUnprotect(string value)
+    {
+        try { return _protector.Unprotect(value); }
+        catch (System.Security.Cryptography.CryptographicException) { return value; }
     }
 
     private static string FormatBytes(long bytes)

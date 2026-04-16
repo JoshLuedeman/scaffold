@@ -44,7 +44,7 @@ public class ProjectRepository : IProjectRepository
             .Include(p => p.Assessment)
             .Include(p => p.MigrationPlan)
             .AsNoTracking()
-            .OrderBy(p => p.CreatedAt)
+            .OrderBy(p => p.CreatedAt).ThenBy(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

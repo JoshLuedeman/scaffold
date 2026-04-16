@@ -11,6 +11,9 @@ public class MigrationHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, migrationId);
     }
 
+    /// <summary>
+    /// Named LeaveMigrationGroup (not LeaveMigration) to match SignalR group management semantics.
+    /// </summary>
     public async Task LeaveMigrationGroup(string migrationId)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, migrationId);

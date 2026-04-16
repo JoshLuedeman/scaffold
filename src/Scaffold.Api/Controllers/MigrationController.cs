@@ -20,19 +20,25 @@ public class MigrationController : ControllerBase
     private readonly IMigrationEngineFactory _migrationEngineFactory;
     private readonly MigrationProgressService _progressService;
     private readonly ValidationEngine _validationEngine;
+    private readonly IConnectionStringProtector _protector;
+    private readonly IPreMigrationValidator _preMigrationValidator;
 
     public MigrationController(
         IProjectRepository projectRepository,
         ScaffoldDbContext dbContext,
         IMigrationEngineFactory migrationEngineFactory,
         MigrationProgressService progressService,
-        ValidationEngine validationEngine)
+        ValidationEngine validationEngine,
+        IConnectionStringProtector protector,
+        IPreMigrationValidator preMigrationValidator)
     {
         _projectRepository = projectRepository;
         _dbContext = dbContext;
         _migrationEngineFactory = migrationEngineFactory;
         _progressService = progressService;
         _validationEngine = validationEngine;
+        _protector = protector;
+        _preMigrationValidator = preMigrationValidator;
     }
 
     /// <summary>
@@ -63,6 +69,10 @@ public class MigrationController : ControllerBase
             if (string.IsNullOrWhiteSpace(project.MigrationPlan.ExistingTargetConnectionString))
                 return BadRequest("Target connection string is required. Configure a target database in the migration plan.");
 
+            var preValidation = await _preMigrationValidator.ValidateAsync(project.MigrationPlan);
+            if (!preValidation.IsValid)
+                return BadRequest(new { Errors = preValidation.Errors, Warnings = preValidation.Warnings });
+
             project.Status = ProjectStatus.Migrating;
             await _projectRepository.UpdateAsync(project);
 
@@ -84,6 +94,9 @@ public class MigrationController : ControllerBase
             }
 
             // Start migration as a background task
+            // Decrypt connection strings before entering the background task
+            var sourceConnStr = _protector.Unprotect(plan.SourceConnectionString!);
+            var targetConnStr = _protector.Unprotect(plan.ExistingTargetConnectionString!);
             var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform);
             _ = Task.Run(async () =>
             {
@@ -91,6 +104,10 @@ public class MigrationController : ControllerBase
                 {
                     _progressService.SetMigrationId(migrationId.ToString());
                     await _progressService.MigrationStarted(migrationId.ToString());
+
+                    // Set decrypted connection strings on plan for engine use
+                    plan.SourceConnectionString = sourceConnStr;
+                    plan.ExistingTargetConnectionString = targetConnStr;
 
                     Core.Models.MigrationResult result;
 
@@ -106,8 +123,8 @@ public class MigrationController : ControllerBase
 
                     // Run post-migration validation
                     var validationSummary = await _validationEngine.ValidateAsync(
-                        plan.SourceConnectionString!,
-                        plan.ExistingTargetConnectionString!,
+                        sourceConnStr,
+                        targetConnStr,
                         plan.IncludedObjects,
                         CancellationToken.None);
 
@@ -174,9 +191,11 @@ public class MigrationController : ControllerBase
 
             // Run post-cutover validation
             var plan = project.MigrationPlan;
+            var sourceConnStr = _protector.Unprotect(plan.SourceConnectionString!);
+            var targetConnStr = _protector.Unprotect(plan.ExistingTargetConnectionString!);
             var validationSummary = await _validationEngine.ValidateAsync(
-                plan.SourceConnectionString!,
-                plan.ExistingTargetConnectionString!,
+                sourceConnStr,
+                targetConnStr,
                 plan.IncludedObjects,
                 ct);
 
@@ -225,9 +244,11 @@ public class MigrationController : ControllerBase
                 return NotFound("Migration not found.");
 
             var plan = project.MigrationPlan;
+            var sourceConnStr = _protector.Unprotect(plan.SourceConnectionString!);
+            var targetConnStr = _protector.Unprotect(plan.ExistingTargetConnectionString!);
             var validationSummary = await _validationEngine.ValidateAsync(
-                plan.SourceConnectionString!,
-                plan.ExistingTargetConnectionString!,
+                sourceConnStr,
+                targetConnStr,
                 plan.IncludedObjects,
                 ct);
 

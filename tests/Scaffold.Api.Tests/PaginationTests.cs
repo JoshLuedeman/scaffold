@@ -37,7 +37,7 @@ public class PaginationTests : IClassFixture<CustomWebApplicationFactory>
         // Arrange — create a project so the list is non-empty
         await CreateProjectAsync("Pagination Default");
 
-        // Act — call without query params (defaults: page=1, pageSize=20)
+        // Act — call without query params (defaults: page=1, pageSize=25)
         var response = await _client.GetAsync("/api/projects");
 
         // Assert
@@ -45,10 +45,10 @@ public class PaginationTests : IClassFixture<CustomWebApplicationFactory>
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<MigrationProject>>(_jsonOptions);
         Assert.NotNull(result);
         Assert.Equal(1, result.Page);
-        Assert.Equal(20, result.PageSize);
+        Assert.Equal(25, result.PageSize);
         Assert.True(result.TotalCount >= 1);
         Assert.True(result.Items.Count >= 1);
-        Assert.True(result.Items.Count <= 20);
+        Assert.True(result.Items.Count <= 25);
     }
 
     [Fact]

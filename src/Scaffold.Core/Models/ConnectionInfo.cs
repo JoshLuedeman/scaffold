@@ -63,10 +63,11 @@ public class ConnectionInfo
 
     private string BuildPostgreSqlConnectionString()
     {
+        var effectivePort = Port == 1433 ? DefaultPortFor(DatabasePlatform.PostgreSql) : Port;
         var parts = new List<string>
         {
             $"Host={Server}",
-            $"Port={Port}",
+            $"Port={effectivePort}",
             $"Database={Database}"
         };
 

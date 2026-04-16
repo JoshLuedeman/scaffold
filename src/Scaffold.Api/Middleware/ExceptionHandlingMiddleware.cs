@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Scaffold.Api.Middleware;
 
@@ -74,6 +75,9 @@ public class ExceptionHandlingMiddleware
         ArgumentException => ((int)HttpStatusCode.BadRequest, "Bad Request"),
         InvalidOperationException => ((int)HttpStatusCode.Conflict, "Conflict"),
         UnauthorizedAccessException => ((int)HttpStatusCode.Forbidden, "Forbidden"),
+        NotSupportedException => ((int)HttpStatusCode.BadRequest, "Bad Request"),
+        DbUpdateConcurrencyException => ((int)HttpStatusCode.Conflict, "Conflict"),
+        System.ComponentModel.DataAnnotations.ValidationException => ((int)HttpStatusCode.BadRequest, "Validation Error"),
         _ => ((int)HttpStatusCode.InternalServerError, "Internal Server Error")
     };
 }

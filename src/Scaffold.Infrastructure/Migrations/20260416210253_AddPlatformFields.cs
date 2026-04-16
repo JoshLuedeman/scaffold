@@ -17,7 +17,7 @@ namespace Scaffold.Infrastructure.Migrations
                 type: "nvarchar(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "SqlServer");
 
             migrationBuilder.AddColumn<string>(
                 name: "TargetPlatform",
@@ -25,7 +25,7 @@ namespace Scaffold.Infrastructure.Migrations
                 type: "nvarchar(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "SqlServer");
 
             migrationBuilder.AddColumn<DateTime>(
                 name: "UpdatedAt",
@@ -40,7 +40,7 @@ namespace Scaffold.Infrastructure.Migrations
                 type: "nvarchar(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "SqlServer");
         }
 
         /// <inheritdoc />

@@ -19,7 +19,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
         // Clamp page to minimum of 1
         page = Math.Max(1, page);
@@ -95,7 +95,7 @@ public class ProjectController : ControllerBase
 }
 
 public record CreateProjectRequest(
-    [Required][StringLength(200, MinimumLength = 1)] string Name,
+    [Required][StringLength(200, MinimumLength = 1)][RegularExpression(@".*\S.*", ErrorMessage = "Name cannot be whitespace only.")] string Name,
     [StringLength(2000)] string? Description,
     Core.Models.ConnectionInfo? ConnectionInfo);
 public record UpdateProjectRequest(string? Name, string? Description);
