@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scaffold.Core.Interfaces;
@@ -93,5 +94,8 @@ public class ProjectController : ControllerBase
     }
 }
 
-public record CreateProjectRequest(string Name, string? Description, Core.Models.ConnectionInfo? ConnectionInfo);
+public record CreateProjectRequest(
+    [Required][StringLength(200, MinimumLength = 1)] string Name,
+    [StringLength(2000)] string? Description,
+    Core.Models.ConnectionInfo? ConnectionInfo);
 public record UpdateProjectRequest(string? Name, string? Description);
