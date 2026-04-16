@@ -36,11 +36,12 @@ CREATE TABLE inventory.product_categories (
 );
 
 CREATE TABLE analytics.page_views (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     product_id UUID REFERENCES inventory.products(id),
     viewer_ip INET,
     user_agent TEXT,
-    viewed_at TIMESTAMPTZ DEFAULT NOW()
+    viewed_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, viewed_at)
 ) PARTITION BY RANGE (viewed_at);
 
 -- Create partitions
