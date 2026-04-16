@@ -22,21 +22,22 @@ public class DbContextTests : IDisposable
     [Fact]
     public async Task MigrationProject_CanSaveAndRetrieve_WithAllProperties()
     {
+        var before = DateTime.UtcNow;
+
         var project = new MigrationProject
         {
             Id = Guid.NewGuid(),
             Name = "Test Project",
             Description = "A test description",
             Status = ProjectStatus.Assessed,
-            CreatedBy = "user@test.com",
-            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            UpdatedAt = new DateTime(2024, 1, 2, 0, 0, 0, DateTimeKind.Utc)
+            CreatedBy = "user@test.com"
         };
 
         _context.MigrationProjects.Add(project);
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
 
+        var after = DateTime.UtcNow;
         var retrieved = await _context.MigrationProjects.FindAsync(project.Id);
 
         Assert.NotNull(retrieved);
@@ -45,8 +46,9 @@ public class DbContextTests : IDisposable
         Assert.Equal("A test description", retrieved.Description);
         Assert.Equal(ProjectStatus.Assessed, retrieved.Status);
         Assert.Equal("user@test.com", retrieved.CreatedBy);
-        Assert.Equal(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), retrieved.CreatedAt);
-        Assert.Equal(new DateTime(2024, 1, 2, 0, 0, 0, DateTimeKind.Utc), retrieved.UpdatedAt);
+        Assert.True(retrieved.CreatedAt >= before && retrieved.CreatedAt <= after,
+            "CreatedAt should be auto-set by SaveChangesAsync");
+        Assert.Equal(retrieved.CreatedAt, retrieved.UpdatedAt);
     }
 
     [Fact]
