@@ -52,7 +52,7 @@ This file captures project learnings that persist across agent sessions.
 
 ```bash
 dotnet build                                        # Build entire solution
-dotnet test                                         # Run all 211+ tests
+dotnet test                                         # Run all 394+ tests
 dotnet test --filter "FullyQualifiedName~TestName"  # Single test
 dotnet run --project src/Scaffold.Api               # API on localhost:5062
 cd src/Scaffold.Web && npm install && npm run dev   # Frontend on localhost:5173
@@ -63,21 +63,32 @@ azd up                                              # Deploy to Azure
 
 ## Current State & Roadmap
 
-### Milestones (all issues open)
+### Milestones
 
-| Phase | Focus | Issues |
+| Phase | Focus | Status |
 |---|---|---|
-| **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | #1–#11 |
-| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | #12–#23 |
-| **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | #24–#31 |
-| **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | #32–#37 |
-| **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | #38–#43 |
-| **Phase 5**: Documentation & Release Prep | ADR, README, API docs, Docker Compose PG, MEMORY.md | #44–#48 |
+| **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Complete (17 issues) |
+| **Phase 0.5**: Testing & Quality | Comprehensive test coverage, frontend tests, CI improvements | 🔜 Next |
+| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | Planned |
+| **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | Planned |
+| **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | Planned |
+| **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | Planned |
+| **Phase 5**: Documentation & Release Prep | ADR, README, API docs, Docker Compose PG, MEMORY.md | Planned |
 
-### Phase 0 Dependency Chain
-`#2 DatabasePlatform enum` → `#3 ConnectionInfo` / `#4 MigrationPlan` → `#5 EF Migration` → `#6 Engine factories` → `#7 DI refactor`
+### Phase 0 Lessons Learned
+- **Parallel coder agents**: Must provide explicit branch guidance (e.g., "commit to milestone/phase-0-foundation"). Without it, agents default to creating feature branches and PRs, causing git state conflicts in a shared working directory. Monitor agent output early to catch rogue branching.
+- **Coder agent file updated** (`.github/agents/coder.agent.md`): Now supports milestone branch workflow and asks for branch guidance if not provided.
+- **Record DataAnnotations**: In ASP.NET Core 8 records, do NOT use `[property: Required]` target syntax — use `[Required]` directly. The `property:` target causes `InvalidOperationException` at runtime.
+- **SynchronousProgress<T>**: Required in tests because `Progress<T>` posts callbacks via SynchronizationContext which doesn't exist in xUnit test runners, causing race conditions.
+- **EF Core in-memory provider**: Does not support `IsRowVersion()` — concurrency tests need special handling.
 
-Independent: `#8 Exception middleware`, `#9 Request validation`, `#10 Health check`, `#11 Docs`
+### Phase 0 Architecture Additions
+- **Engine Factory Pattern**: `IAssessmentEngineFactory` / `IMigrationEngineFactory` resolve platform-specific engines. Controllers no longer inject engines directly.
+- **AuditableEntity**: Base class with `CreatedAt`/`UpdatedAt`; `SaveChangesAsync` override auto-sets timestamps.
+- **Optimistic Concurrency**: `RowVersion` on `MigrationProject` and `MigrationPlan` via `[Timestamp]` attribute.
+- **Connection String Encryption**: `IConnectionStringProtector` using ASP.NET Core Data Protection; encrypts `SourceConnectionString` and `ExistingTargetConnectionString` at rest.
+- **Pre-Migration Validation**: `IPreMigrationValidator` validates plans before execution (strategy, schedule, objects, connection strings).
+- **API Pagination**: `PaginatedResult<T>` with page/pageSize clamping (1-100).
 
 ## Known Pitfalls
 
