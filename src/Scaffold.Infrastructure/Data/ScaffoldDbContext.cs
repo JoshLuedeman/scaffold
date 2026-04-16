@@ -92,6 +92,10 @@ public class ScaffoldDbContext : DbContext
             entity.Property(c => c.Database).HasMaxLength(200).IsRequired();
             entity.Property(c => c.Username).HasMaxLength(200);
             entity.Property(c => c.KeyVaultSecretUri).HasMaxLength(500);
+
+            entity.Property(c => c.Platform)
+                .HasConversion<string>()
+                .HasMaxLength(50);
         });
     }
 
@@ -136,6 +140,14 @@ public class ScaffoldDbContext : DbContext
             entity.HasKey(p => p.Id);
 
             entity.Property(p => p.Strategy)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            entity.Property(p => p.SourcePlatform)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            entity.Property(p => p.TargetPlatform)
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
