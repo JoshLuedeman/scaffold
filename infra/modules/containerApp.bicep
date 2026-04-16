@@ -26,6 +26,18 @@ param logAnalyticsCustomerId string = ''
 @secure()
 param logAnalyticsSharedKey string = ''
 
+@description('CPU cores for the container')
+param cpuCores string = '0.25'
+
+@description('Memory for the container')
+param memory string = '0.5Gi'
+
+@description('Minimum number of replicas')
+param minReplicas int = 0
+
+@description('Maximum number of replicas')
+param maxReplicas int = 3
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: '${prefix}-env'
   location: location
@@ -66,8 +78,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'api'
           image: 'mcr.microsoft.com/dotnet/samples:aspnetapp'
           resources: {
-            cpu: json('0.25')
-            memory: '0.5Gi'
+            cpu: json(cpuCores)
+            memory: memory
           }
           env: concat(
             !empty(sqlConnectionString) ? [{ name: 'ConnectionStrings__DefaultConnection', value: sqlConnectionString }] : [],
@@ -83,8 +95,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: 0
-        maxReplicas: 3
+        minReplicas: minReplicas
+        maxReplicas: maxReplicas
       }
     }
   }

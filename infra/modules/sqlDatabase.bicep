@@ -8,6 +8,15 @@ param location string
 @secure()
 param adminPassword string
 
+@description('SQL Database SKU name')
+param skuName string = 'Basic'
+
+@description('SQL Database SKU tier')
+param skuTier string = 'Basic'
+
+@description('SQL Database SKU capacity (DTUs)')
+param skuCapacity int = 5
+
 var serverName = '${prefix}-sql'
 var dbName = '${prefix}-db'
 
@@ -25,9 +34,9 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
   name: dbName
   location: location
   sku: {
-    name: 'Basic'
-    tier: 'Basic'
-    capacity: 5
+    name: skuName
+    tier: skuTier
+    capacity: skuCapacity
   }
 }
 
