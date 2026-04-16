@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Models;
 
@@ -13,7 +14,7 @@ public record MigrationScriptDto(
     int Order = 0);
 
 public record CreateMigrationPlanRequest(
-    MigrationStrategy Strategy,
+    [Required] MigrationStrategy Strategy,
     List<string>? IncludedObjects = null,
     List<string>? ExcludedObjects = null,
     DateTime? ScheduledAt = null,
@@ -23,7 +24,7 @@ public record CreateMigrationPlanRequest(
     List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool UseExistingTarget = false,
-    string? ExistingTargetConnectionString = null);
+    [StringLength(1000)] string? ExistingTargetConnectionString = null);
 
 public record UpdateMigrationPlanRequest(
     MigrationStrategy? Strategy = null,
@@ -36,16 +37,16 @@ public record UpdateMigrationPlanRequest(
     List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool? UseExistingTarget = null,
-    string? ExistingTargetConnectionString = null);
+    [StringLength(1000)] string? ExistingTargetConnectionString = null);
 
 public record TierOverrideDto(
-    string ServiceTier,
-    string ComputeSize,
+    [Required][StringLength(100)] string ServiceTier,
+    [Required][StringLength(100)] string ComputeSize,
     int? Dtus = null,
     int? VCores = null,
-    int StorageGb = 0,
-    decimal EstimatedMonthlyCostUsd = 0,
-    string? Reasoning = null);
+    [Range(0, 100000)] int StorageGb = 0,
+    [Range(0, 1000000)] decimal EstimatedMonthlyCostUsd = 0,
+    [StringLength(2000)] string? Reasoning = null);
 
 public record MigrationPlanResponse(
     Guid Id,
@@ -97,7 +98,7 @@ public record MigrationPlanResponse(
 #pragma warning restore CS0618
 }
 
-public record RejectMigrationPlanRequest(string? Reason = null);
+public record RejectMigrationPlanRequest([StringLength(2000)] string? Reason = null);
 
 public record MigrationPlanSummaryResponse(
     Guid PlanId,

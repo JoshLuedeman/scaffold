@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scaffold.Core.Interfaces;
@@ -37,11 +38,11 @@ public class ConnectionController : ControllerBase
 }
 
 public record ConnectionTestRequest(
-    string Server,
-    string Database,
-    int Port = 1433,
+    [Required][StringLength(500)] string Server,
+    [Required][StringLength(200)] string Database,
+    [Range(1, 65535)] int Port = 1433,
     bool UseSqlAuthentication = false,
-    string? Username = null,
+    [StringLength(200)] string? Username = null,
     string? Password = null,
-    string? KeyVaultSecretUri = null,
+    [StringLength(500)] string? KeyVaultSecretUri = null,
     bool TrustServerCertificate = false);
