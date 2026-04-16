@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Scaffold.Api.Hubs;
@@ -62,6 +63,9 @@ builder.Services.AddScoped<IAssessmentEngine, SqlServerAssessor>();
 builder.Services.AddScoped<IMigrationEngine, SqlServerMigrator>();
 builder.Services.AddSingleton<ValidationEngine>();
 
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ScaffoldDbContext>("database");
+
 var app = builder.Build();
 
 // Apply pending EF Core migrations on startup (skip for in-memory test databases)
@@ -82,6 +86,26 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<MigrationHub>("/hubs/migration");
+app.MapHealthChecks("/healthz", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration.TotalMilliseconds
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds
+        };
+        await context.Response.WriteAsJsonAsync(result);
+    }
+}).AllowAnonymous();
 
 app.Run();
 
