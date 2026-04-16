@@ -48,6 +48,9 @@ param staticWebAppSkuTier string = 'Free'
 @description('Container Registry SKU name')
 param acrSkuName string = 'Basic'
 
+@description('Enable VNet isolation with private endpoints for SQL and Key Vault')
+param enableVnetIsolation bool = false
+
 var prefix = 'scaffold-${environmentName}'
 
 module logAnalytics 'modules/logAnalytics.bicep' = {
@@ -67,6 +70,32 @@ module appInsights 'modules/appInsights.bicep' = {
   }
 }
 
+// --- VNet isolation (conditional) ---
+
+module networking 'modules/networking.bicep' = if (enableVnetIsolation) {
+  name: 'networking'
+  params: {
+    prefix: prefix
+    location: location
+  }
+}
+
+module sqlDnsZone 'modules/privateDnsZone.bicep' = if (enableVnetIsolation) {
+  name: 'sqlDnsZone'
+  params: {
+    zoneName: 'privatelink.database.windows.net'
+    vnetId: networking.outputs.vnetId
+  }
+}
+
+module kvDnsZone 'modules/privateDnsZone.bicep' = if (enableVnetIsolation) {
+  name: 'kvDnsZone'
+  params: {
+    zoneName: 'privatelink.vaultcore.azure.net'
+    vnetId: networking.outputs.vnetId
+  }
+}
+
 module sql 'modules/sqlDatabase.bicep' = {
   name: 'sql'
   params: {
@@ -76,6 +105,7 @@ module sql 'modules/sqlDatabase.bicep' = {
     skuName: sqlSkuName
     skuTier: sqlSkuTier
     skuCapacity: sqlSkuCapacity
+    enablePublicAccess: !enableVnetIsolation
   }
 }
 
@@ -105,6 +135,7 @@ module containerApp 'modules/containerApp.bicep' = {
     memory: containerAppMemory
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
+    subnetId: enableVnetIsolation ? networking.outputs.containerAppsSubnetId : ''
   }
 }
 
@@ -124,6 +155,35 @@ module keyVault 'modules/keyVault.bicep' = {
     prefix: prefix
     location: location
     containerAppPrincipalId: containerApp.outputs.containerAppPrincipalId
+    enablePublicAccess: !enableVnetIsolation
+  }
+}
+
+// --- Private endpoints (conditional) ---
+
+module sqlPrivateEndpoint 'modules/privateEndpoint.bicep' = if (enableVnetIsolation) {
+  name: 'sqlPrivateEndpoint'
+  params: {
+    prefix: prefix
+    location: location
+    endpointName: 'sql'
+    targetResourceId: sql.outputs.sqlServerId
+    groupId: 'sqlServer'
+    subnetId: networking.outputs.privateEndpointsSubnetId
+    privateDnsZoneId: sqlDnsZone.outputs.dnsZoneId
+  }
+}
+
+module kvPrivateEndpoint 'modules/privateEndpoint.bicep' = if (enableVnetIsolation) {
+  name: 'kvPrivateEndpoint'
+  params: {
+    prefix: prefix
+    location: location
+    endpointName: 'kv'
+    targetResourceId: keyVault.outputs.keyVaultId
+    groupId: 'vault'
+    subnetId: networking.outputs.privateEndpointsSubnetId
+    privateDnsZoneId: kvDnsZone.outputs.dnsZoneId
   }
 }
 

@@ -38,18 +38,24 @@ param minReplicas int = 0
 @description('Maximum number of replicas')
 param maxReplicas int = 3
 
+@description('Subnet ID for VNet integration (empty = no VNet)')
+param subnetId string = ''
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: '${prefix}-env'
   location: location
-  properties: {
-    appLogsConfiguration: !empty(logAnalyticsCustomerId) ? {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsCustomerId
-        sharedKey: logAnalyticsSharedKey
-      }
-    } : null
-  }
+  properties: union(
+    {
+      appLogsConfiguration: !empty(logAnalyticsCustomerId) ? {
+        destination: 'log-analytics'
+        logAnalyticsConfiguration: {
+          customerId: logAnalyticsCustomerId
+          sharedKey: logAnalyticsSharedKey
+        }
+      } : null
+    },
+    !empty(subnetId) ? { vnetConfiguration: { infrastructureSubnetId: subnetId } } : {}
+  )
 }
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {

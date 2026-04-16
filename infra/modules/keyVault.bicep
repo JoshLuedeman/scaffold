@@ -7,6 +7,9 @@ param location string
 @description('Principal ID to grant Key Vault Secrets User role')
 param containerAppPrincipalId string = ''
 
+@description('Enable public network access (disable when using private endpoints)')
+param enablePublicAccess bool = true
+
 var vaultName = replace('${prefix}-kv', '-', '')
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -19,6 +22,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     }
     tenantId: subscription().tenantId
     enableRbacAuthorization: true
+    publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
   }
 }
 

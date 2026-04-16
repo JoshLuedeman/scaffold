@@ -31,3 +31,5 @@ param staticWebAppSkuName = 'Standard'
 param staticWebAppSkuTier = 'Standard'
 
 param acrSkuName = 'Standard'
+
+param enableVnetIsolation = true
