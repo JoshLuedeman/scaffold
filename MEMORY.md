@@ -52,7 +52,7 @@ This file captures project learnings that persist across agent sessions.
 
 ```bash
 dotnet build                                        # Build entire solution
-dotnet test                                         # Run all 394+ tests
+dotnet test                                         # Run all 397+ tests
 dotnet test --filter "FullyQualifiedName~TestName"  # Single test
 dotnet run --project src/Scaffold.Api               # API on localhost:5062
 cd src/Scaffold.Web && npm install && npm run dev   # Frontend on localhost:5173
@@ -67,7 +67,7 @@ azd up                                              # Deploy to Azure
 
 | Phase | Focus | Status |
 |---|---|---|
-| **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Complete (17 issues) |
+| **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Merged (PR #89, 17 issues) |
 | **Phase 0.5**: Testing & Quality | Comprehensive test coverage, frontend tests, CI improvements | 🔜 Next |
 | **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | Planned |
 | **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | Planned |
@@ -78,6 +78,8 @@ azd up                                              # Deploy to Azure
 ### Phase 0 Lessons Learned
 - **Parallel coder agents**: Must provide explicit branch guidance (e.g., "commit to milestone/phase-0-foundation"). Without it, agents default to creating feature branches and PRs, causing git state conflicts in a shared working directory. Monitor agent output early to catch rogue branching.
 - **Coder agent file updated** (`.github/agents/coder.agent.md`): Now supports milestone branch workflow and asks for branch guidance if not provided.
+- **Copilot code review**: First Copilot review on a repo requires clicking the UI "Request" button — CLI/API methods (`gh pr edit --add-reviewer`) don't work initially. Subsequent PRs should retry CLI methods.
+- **Copilot review found real bugs**: Connection string encryption/decryption flow had a critical bug (encrypted strings passed to engines). Always address suppressed low-confidence comments too — they can be valid.
 - **Record DataAnnotations**: In ASP.NET Core 8 records, do NOT use `[property: Required]` target syntax — use `[Required]` directly. The `property:` target causes `InvalidOperationException` at runtime.
 - **SynchronousProgress<T>**: Required in tests because `Progress<T>` posts callbacks via SynchronizationContext which doesn't exist in xUnit test runners, causing race conditions.
 - **EF Core in-memory provider**: Does not support `IsRowVersion()` — concurrency tests need special handling.
