@@ -6,15 +6,22 @@ A web application for assessing, planning, and executing SQL Server database mig
 
 ## Features
 
-- **Assessment Engine** — Analyzes source SQL Server databases for schema, data profile, and workload metrics
+- **Multi-Platform Support** — Extensible platform architecture with SQL Server support today and PostgreSQL planned; platform-specific engines are resolved at runtime via factory pattern
+- **Assessment Engine** — Analyzes source databases for schema, data profile, and workload metrics
 - **Compatibility Matrix** — Evaluates compatibility across Azure SQL Database, Hyperscale, Managed Instance, and SQL Server on Azure VM
 - **Tier Recommendation** — Recommends the optimal Azure SQL service tier based on workload and compatibility
 - **Azure Pricing Integration** — Real-time cost estimates from the Azure Retail Prices API across all regions
+- **Pre-Migration Validation** — Validates migration plans before execution (strategy, schedule, objects, connection strings, scripts)
 - **Migration Scripts** — Auto-generates pre/post migration scripts (drop/restore FKs, indexes, triggers, constraints) with custom script support
 - **Bulk Data Migration** — SqlBulkCopy-based data transfer with FK dependency ordering and progress tracking
 - **Continuous Sync** — Change Tracking-based incremental replication with manual cutover for minimal downtime
 - **Post-Migration Validation** — Row count and checksum verification between source and target
 - **Real-Time Progress** — SignalR-based live migration progress updates
+- **API Pagination** — Paginated list endpoints with total count, page metadata, and navigation flags
+- **Health Check** — `/healthz` endpoint with database connectivity verification
+- **Connection String Encryption** — Connection strings encrypted at rest using ASP.NET Core Data Protection
+- **Audit Timestamps** — Automatic `CreatedAt`/`UpdatedAt` tracking on all core entities
+- **Optimistic Concurrency** — `RowVersion`-based concurrency protection on projects and migration plans
 
 ## Architecture
 
@@ -49,7 +56,7 @@ A web application for assessing, planning, and executing SQL Server database mig
 - `Scaffold.Api` — ASP.NET Core 8 Web API with SignalR hubs
 - `Scaffold.Web` — React 19 + Vite + Fluent UI v9 frontend
 
-Source platform support is extensible via `IAssessmentEngine` and `IMigrationEngine` interfaces.
+Source platform support is extensible via the factory pattern — `IAssessmentEngineFactory` and `IMigrationEngineFactory` resolve platform-specific engines at runtime based on the `DatabasePlatform` enum. See [Architecture](docs/architecture.md) for details.
 
 ## Prerequisites
 

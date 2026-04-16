@@ -23,7 +23,9 @@ public record CreateMigrationPlanRequest(
     List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool UseExistingTarget = false,
-    string? ExistingTargetConnectionString = null);
+    string? ExistingTargetConnectionString = null,
+    DatabasePlatform? SourcePlatform = null,
+    DatabasePlatform? TargetPlatform = null);
 
 public record UpdateMigrationPlanRequest(
     MigrationStrategy? Strategy = null,
@@ -36,7 +38,9 @@ public record UpdateMigrationPlanRequest(
     List<MigrationScriptDto>? PostMigrationScripts = null,
     TierOverrideDto? TargetTierOverride = null,
     bool? UseExistingTarget = null,
-    string? ExistingTargetConnectionString = null);
+    string? ExistingTargetConnectionString = null,
+    DatabasePlatform? SourcePlatform = null,
+    DatabasePlatform? TargetPlatform = null);
 
 public record TierOverrideDto(
     string ServiceTier,
@@ -68,7 +72,9 @@ public record MigrationPlanResponse(
     string? RejectedBy,
     string? RejectionReason,
     string Status,
-    Guid? MigrationId)
+    Guid? MigrationId,
+    string SourcePlatform,
+    string TargetPlatform)
 {
 #pragma warning disable CS0618 // Obsolete members used for backward compat
     public static MigrationPlanResponse FromModel(MigrationPlan plan) =>
@@ -93,7 +99,9 @@ public record MigrationPlanResponse(
             plan.RejectedBy,
             plan.RejectionReason,
             plan.Status.ToString(),
-            plan.MigrationId);
+            plan.MigrationId,
+            plan.SourcePlatform.ToString(),
+            plan.TargetPlatform.ToString());
 #pragma warning restore CS0618
 }
 

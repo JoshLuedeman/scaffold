@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scaffold.Core.Interfaces;
@@ -18,10 +19,16 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
-        var projects = await _projectRepository.GetAllAsync();
-        return Ok(projects);
+        // Clamp page to minimum of 1
+        page = Math.Max(1, page);
+
+        // Clamp pageSize between 1 and 100
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var result = await _projectRepository.GetAllAsync(page, pageSize);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -87,5 +94,8 @@ public class ProjectController : ControllerBase
     }
 }
 
-public record CreateProjectRequest(string Name, string? Description, Core.Models.ConnectionInfo? ConnectionInfo);
+public record CreateProjectRequest(
+    [Required][StringLength(200, MinimumLength = 1)][RegularExpression(@".*\S.*", ErrorMessage = "Name cannot be whitespace only.")] string Name,
+    [StringLength(2000)] string? Description,
+    Core.Models.ConnectionInfo? ConnectionInfo);
 public record UpdateProjectRequest(string? Name, string? Description);

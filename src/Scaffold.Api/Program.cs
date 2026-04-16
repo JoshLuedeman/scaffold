@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Scaffold.Api.Hubs;
+using Scaffold.Api.Middleware;
 using Scaffold.Api.Services;
 using Scaffold.Assessment.Pricing;
 using Scaffold.Assessment.SqlServer;
@@ -53,14 +54,23 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<MigrationProgressService>();
 builder.Services.AddHostedService<MigrationSchedulerService>();
 
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<IConnectionStringProtector, Scaffold.Infrastructure.Security.ConnectionStringProtector>();
+
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<AzurePricingService>();
 builder.Services.AddScoped<IAzurePricingService, AzurePricingService>();
 
 builder.Services.AddSingleton<SqlServerConnectionFactory>();
-builder.Services.AddScoped<IAssessmentEngine, SqlServerAssessor>();
-builder.Services.AddScoped<IMigrationEngine, SqlServerMigrator>();
+builder.Services.AddScoped<SqlServerAssessor>();
+builder.Services.AddScoped<SqlServerMigrator>();
+builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
+builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();
 builder.Services.AddSingleton<ValidationEngine>();
+builder.Services.AddScoped<IPreMigrationValidator, PreMigrationValidator>();
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ScaffoldDbContext>();
 
 var app = builder.Build();
 
@@ -76,11 +86,14 @@ using (var scope = app.Services.CreateScope())
 
 // Configure the HTTP request pipeline.
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseHttpsRedirection();
 app.UseCors("FrontendOrigin");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/healthz");
 app.MapHub<MigrationHub>("/hubs/migration");
 
 app.Run();

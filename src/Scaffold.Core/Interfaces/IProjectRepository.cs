@@ -6,6 +6,7 @@ public interface IProjectRepository
 {
     Task<MigrationProject> GetByIdAsync(Guid id);
     Task<IReadOnlyList<MigrationProject>> GetAllAsync();
+    Task<PaginatedResult<MigrationProject>> GetAllAsync(int page, int pageSize);
     Task<MigrationProject> CreateAsync(MigrationProject project);
     Task UpdateAsync(MigrationProject project);
     Task DeleteAsync(Guid id);

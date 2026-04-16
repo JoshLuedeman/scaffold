@@ -77,9 +77,10 @@ public class MigrationSchedulerService : BackgroundService
     {
         var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
         var projectRepo = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
-        var migrationEngine = scope.ServiceProvider.GetRequiredService<IMigrationEngine>();
+        var migrationEngineFactory = scope.ServiceProvider.GetRequiredService<IMigrationEngineFactory>();
         var progressService = scope.ServiceProvider.GetRequiredService<MigrationProgressService>();
         var validationEngine = scope.ServiceProvider.GetRequiredService<ValidationEngine>();
+        var protector = scope.ServiceProvider.GetRequiredService<IConnectionStringProtector>();
 
         var project = await projectRepo.GetByIdAsync(plan.ProjectId);
 
@@ -114,9 +115,16 @@ public class MigrationSchedulerService : BackgroundService
         progressService.SetMigrationId(migrationId.ToString());
         await progressService.MigrationStarted(migrationId.ToString());
 
+        // Decrypt connection strings for engine/validation use
+        var sourceConnStr = protector.Unprotect(plan.SourceConnectionString!);
+        var targetConnStr = protector.Unprotect(plan.ExistingTargetConnectionString!);
+        plan.SourceConnectionString = sourceConnStr;
+        plan.ExistingTargetConnectionString = targetConnStr;
+
         try
         {
             Core.Models.MigrationResult result;
+            var migrationEngine = migrationEngineFactory.Create(plan.SourcePlatform);
 
             if (plan.Strategy == MigrationStrategy.ContinuousSync)
             {
@@ -128,8 +136,8 @@ public class MigrationSchedulerService : BackgroundService
             result.Id = migrationId;
 
             var validationSummary = await validationEngine.ValidateAsync(
-                plan.SourceConnectionString!,
-                plan.ExistingTargetConnectionString!,
+                sourceConnStr,
+                targetConnStr,
                 plan.IncludedObjects,
                 CancellationToken.None);
 

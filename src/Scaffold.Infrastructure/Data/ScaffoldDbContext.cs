@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -10,6 +10,29 @@ namespace Scaffold.Infrastructure.Data;
 public class ScaffoldDbContext : DbContext
 {
     public ScaffoldDbContext(DbContextOptions<ScaffoldDbContext> options) : base(options) { }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var utcNow = DateTime.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    entry.Entity.CreatedAt = utcNow;
+                    entry.Entity.UpdatedAt = utcNow;
+                    break;
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = utcNow;
+                    // Prevent CreatedAt from being changed on update
+                    entry.Property(nameof(AuditableEntity.CreatedAt)).IsModified = false;
+                    break;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
 
     public DbSet<MigrationProject> MigrationProjects => Set<MigrationProject>();
     public DbSet<ConnectionInfo> ConnectionInfos => Set<ConnectionInfo>();
@@ -57,6 +80,8 @@ public class ScaffoldDbContext : DbContext
                 .WithOne()
                 .HasForeignKey<MigrationPlan>(m => m.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(e => e.RowVersion).IsRowVersion();
         });
     }
 
@@ -69,6 +94,10 @@ public class ScaffoldDbContext : DbContext
             entity.Property(c => c.Database).HasMaxLength(200).IsRequired();
             entity.Property(c => c.Username).HasMaxLength(200);
             entity.Property(c => c.KeyVaultSecretUri).HasMaxLength(500);
+
+            entity.Property(c => c.Platform)
+                .HasConversion<string>()
+                .HasMaxLength(50);
         });
     }
 
@@ -116,6 +145,14 @@ public class ScaffoldDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
+            entity.Property(p => p.SourcePlatform)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            entity.Property(p => p.TargetPlatform)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
             entity.Property(p => p.IncludedObjects)
                 .HasConversion(
                     v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -151,6 +188,8 @@ public class ScaffoldDbContext : DbContext
                 t.Property(r => r.EstimatedMonthlyCostUsd).HasPrecision(18, 2);
                 t.ToJson();
             });
+
+            entity.Property(e => e.RowVersion).IsRowVersion();
         });
     }
 

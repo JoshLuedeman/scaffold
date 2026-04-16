@@ -1,12 +1,18 @@
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
 
-public class MigrationPlan
+public class MigrationPlan : AuditableEntity
 {
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
+
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = [];
+    public DatabasePlatform SourcePlatform { get; set; } = DatabasePlatform.SqlServer;
+    public DatabasePlatform TargetPlatform { get; set; } = DatabasePlatform.SqlServer;
     public MigrationStrategy Strategy { get; set; }
     public List<string> IncludedObjects { get; set; } = [];
     public List<string> ExcludedObjects { get; set; } = [];
@@ -30,7 +36,6 @@ public class MigrationPlan
     public MigrationStatus Status { get; set; } = MigrationStatus.Pending;
     public Guid? MigrationId { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? TargetRegion { get; set; }
     public bool IsApproved { get; set; }
     public string? ApprovedBy { get; set; }

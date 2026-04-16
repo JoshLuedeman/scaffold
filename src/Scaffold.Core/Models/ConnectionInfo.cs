@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
 
@@ -12,6 +13,7 @@ public class ConnectionInfo
     public string? Username { get; set; }
     public string? KeyVaultSecretUri { get; set; }
     public bool TrustServerCertificate { get; set; }
+    public DatabasePlatform Platform { get; set; } = DatabasePlatform.SqlServer;
 
     /// <summary>
     /// Runtime-only password for local/dev use. Not persisted to the database.
@@ -20,7 +22,22 @@ public class ConnectionInfo
     [NotMapped]
     public string? Password { get; set; }
 
-    public string BuildConnectionString()
+    /// <summary>
+    /// Returns the conventional default port for the given database platform.
+    /// </summary>
+    public static int DefaultPortFor(DatabasePlatform platform) => platform switch
+    {
+        DatabasePlatform.PostgreSql => 5432,
+        _ => 1433
+    };
+
+    public string BuildConnectionString() => Platform switch
+    {
+        DatabasePlatform.PostgreSql => BuildPostgreSqlConnectionString(),
+        _ => BuildSqlServerConnectionString()
+    };
+
+    private string BuildSqlServerConnectionString()
     {
         var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
         {
@@ -42,5 +59,27 @@ public class ConnectionInfo
         }
 
         return builder.ConnectionString;
+    }
+
+    private string BuildPostgreSqlConnectionString()
+    {
+        var effectivePort = Port == 1433 ? DefaultPortFor(DatabasePlatform.PostgreSql) : Port;
+        var parts = new List<string>
+        {
+            $"Host={Server}",
+            $"Port={effectivePort}",
+            $"Database={Database}"
+        };
+
+        if (!string.IsNullOrEmpty(Username))
+            parts.Add($"Username={Username}");
+
+        if (!string.IsNullOrEmpty(Password))
+            parts.Add($"Password={Password}");
+
+        if (TrustServerCertificate)
+            parts.Add("Trust Server Certificate=true");
+
+        return string.Join(";", parts);
     }
 }

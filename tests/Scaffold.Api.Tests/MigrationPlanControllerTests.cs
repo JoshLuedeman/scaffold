@@ -8,6 +8,7 @@ using Scaffold.Api.Controllers;
 using Scaffold.Api.Dtos;
 using Scaffold.Api.Tests.Infrastructure;
 using Scaffold.Core.Enums;
+using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 using Scaffold.Infrastructure.Data;
 
@@ -183,11 +184,18 @@ public class MigrationPlanControllerTests : IClassFixture<CustomWebApplicationFa
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+            var protector = scope.ServiceProvider.GetRequiredService<IConnectionStringProtector>();
             var plan = await db.MigrationPlans.FirstOrDefaultAsync(p => p.ProjectId == project.Id);
             Assert.NotNull(plan);
             Assert.False(string.IsNullOrWhiteSpace(plan.SourceConnectionString));
-            Assert.Contains("myserver.database.windows.net", plan.SourceConnectionString);
-            Assert.Contains("MyDb", plan.SourceConnectionString);
+
+            // The stored value should be encrypted (not plaintext)
+            Assert.DoesNotContain("myserver.database.windows.net", plan.SourceConnectionString);
+
+            // After unprotecting, the original connection string is recovered
+            var decrypted = protector.Unprotect(plan.SourceConnectionString);
+            Assert.Contains("myserver.database.windows.net", decrypted);
+            Assert.Contains("MyDb", decrypted);
         }
     }
 }
