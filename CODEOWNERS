@@ -1,0 +1,7 @@
+# Security-sensitive paths require security review
+infra/ @JoshLuedeman
+.github/workflows/ @JoshLuedeman
+src/Scaffold.Infrastructure/Security/ @JoshLuedeman
+src/Scaffold.Api/Middleware/ @JoshLuedeman
+docker-compose.yml @JoshLuedeman
+**/Dockerfile @JoshLuedeman

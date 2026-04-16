@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "security"]
+
+  - package-ecosystem: "npm"
+    directory: "/src/Scaffold.Web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "security"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+
+  - package-ecosystem: "docker"
+    directory: "/src/Scaffold.Api"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "security"]
+
+  - package-ecosystem: "docker"
+    directory: "/src/Scaffold.Web"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "security"]
