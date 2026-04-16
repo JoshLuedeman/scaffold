@@ -76,6 +76,7 @@ using (var scope = app.Services.CreateScope())
 
 // Configure the HTTP request pipeline.
 
+app.UseMiddleware<Scaffold.Api.Middleware.ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("FrontendOrigin");
 app.UseAuthentication();
