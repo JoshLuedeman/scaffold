@@ -110,8 +110,26 @@ public class AzurePricingService : IAzurePricingService
         {
             "SQL Server on Azure VM" => BuildVmFilter(computeSize),
             "Azure SQL Managed Instance" => BuildManagedInstanceFilter(computeSize),
+            "PostgreSQL on Azure VM" => BuildPostgreSqlVmFilter(computeSize),
+            "Azure Database for PostgreSQL - Flexible Server" => BuildFlexibleServerFilter(computeSize),
             _ => BuildSqlDatabaseFilter(computeSize) // SQL Database + Hyperscale
         };
+    }
+
+    private static string BuildFlexibleServerFilter(string computeSize)
+    {
+        // serviceName eq 'Azure Database for PostgreSQL' for Flexible Server
+        // computeSize maps directly as armSkuName (e.g., GP_Standard_D2s_v3)
+        return $"serviceName eq 'Azure Database for PostgreSQL' and priceType eq 'Consumption' and currencyCode eq 'USD'" +
+               $" and armSkuName eq '{computeSize}'";
+    }
+
+    private static string BuildPostgreSqlVmFilter(string computeSize)
+    {
+        // Same as SQL VM filter but Linux instead of Windows
+        return $"serviceName eq 'Virtual Machines' and priceType eq 'Consumption' and currencyCode eq 'USD'" +
+               $" and armSkuName eq '{computeSize}'" +
+               $" and contains(productName, 'Linux')";
     }
 
     private static string BuildVmFilter(string computeSize)
@@ -189,9 +207,9 @@ public class AzurePricingService : IAzurePricingService
     {
         decimal computeCost;
 
-        if (serviceTier == "SQL Server on Azure VM")
+        if (serviceTier == "SQL Server on Azure VM" || serviceTier == "PostgreSQL on Azure VM")
         {
-            // For VMs: pick the single Windows hourly rate (not Linux, not Spot)
+            // For VMs: pick the single hourly rate (filter already ensures correct OS: Windows for SQL, Linux for PG)
             var vmItem = items
                 .Where(i => i.UnitOfMeasure.Contains("Hour", StringComparison.OrdinalIgnoreCase))
                 .Where(i => i.MeterName == items.First().MeterName.Replace(" Spot", "").Replace(" Low Priority", ""))
