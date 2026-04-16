@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Scaffold.Api.Hubs;
+using Scaffold.Api.Middleware;
 using Scaffold.Api.Services;
 using Scaffold.Assessment.Pricing;
 using Scaffold.Assessment.SqlServer;
@@ -62,6 +63,9 @@ builder.Services.AddScoped<IAssessmentEngine, SqlServerAssessor>();
 builder.Services.AddScoped<IMigrationEngine, SqlServerMigrator>();
 builder.Services.AddSingleton<ValidationEngine>();
 
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ScaffoldDbContext>();
+
 var app = builder.Build();
 
 // Apply pending EF Core migrations on startup (skip for in-memory test databases)
@@ -76,11 +80,14 @@ using (var scope = app.Services.CreateScope())
 
 // Configure the HTTP request pipeline.
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseHttpsRedirection();
 app.UseCors("FrontendOrigin");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/healthz");
 app.MapHub<MigrationHub>("/hubs/migration");
 
 app.Run();
