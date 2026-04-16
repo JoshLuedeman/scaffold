@@ -8,6 +8,18 @@ param location string
 @secure()
 param adminPassword string
 
+@description('SQL Database SKU name')
+param skuName string = 'Basic'
+
+@description('SQL Database SKU tier')
+param skuTier string = 'Basic'
+
+@description('SQL Database SKU capacity (DTUs)')
+param skuCapacity int = 5
+
+@description('Enable public network access (disable when using private endpoints)')
+param enablePublicAccess bool = true
+
 var serverName = '${prefix}-sql'
 var dbName = '${prefix}-db'
 
@@ -17,6 +29,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = {
   properties: {
     administratorLogin: 'scaffoldadmin'
     administratorLoginPassword: adminPassword
+    publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
   }
 }
 
@@ -25,13 +38,13 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
   name: dbName
   location: location
   sku: {
-    name: 'Basic'
-    tier: 'Basic'
-    capacity: 5
+    name: skuName
+    tier: skuTier
+    capacity: skuCapacity
   }
 }
 
-resource firewallAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-05-01-preview' = {
+resource firewallAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-05-01-preview' = if (enablePublicAccess) {
   parent: sqlServer
   name: 'AllowAzureServices'
   properties: {

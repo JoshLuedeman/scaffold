@@ -12,6 +12,9 @@ using Scaffold.Migration.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Application Insights telemetry (connection string picked up from APPLICATIONINSIGHTS_CONNECTION_STRING env var)
+builder.Services.AddApplicationInsightsTelemetry();
+
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
