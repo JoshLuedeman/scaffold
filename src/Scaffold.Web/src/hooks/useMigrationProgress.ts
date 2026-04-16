@@ -112,17 +112,17 @@ export function useMigrationProgress(
       setConnectionStatus('disconnected');
     });
 
-    setConnectionStatus('connecting');
-    connection
-      .start()
-      .then(() => {
+    void (async () => {
+      setConnectionStatus('connecting');
+      try {
+        await connection.start();
         setConnectionStatus('connected');
-        return connection.invoke('JoinMigration', migrationId);
-      })
-      .catch((err) => {
+        await connection.invoke('JoinMigration', migrationId);
+      } catch (err) {
         setConnectionStatus('disconnected');
-        addLogEntry(`Connection error: ${err.message}`);
-      });
+        addLogEntry(`Connection error: ${(err as Error).message}`);
+      }
+    })();
 
     return () => {
       connectionRef.current = null;

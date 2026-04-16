@@ -1,6 +1,4 @@
 import {
-  createContext,
-  useContext,
   useState,
   useEffect,
   useCallback,
@@ -11,17 +9,10 @@ import {
   webLightTheme,
   webDarkTheme,
 } from '@fluentui/react-components';
-
-type ThemeMode = 'light' | 'dark';
-
-interface ThemeContextValue {
-  theme: ThemeMode;
-  toggleTheme: () => void;
-}
+import { ThemeContext } from './themeContextValue';
+import type { ThemeMode } from './themeContextValue';
 
 const STORAGE_KEY = 'scaffold-theme';
-
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function getInitialTheme(): ThemeMode {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -51,12 +42,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       </FluentProvider>
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return ctx;
 }

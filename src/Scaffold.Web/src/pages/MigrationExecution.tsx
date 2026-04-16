@@ -32,12 +32,9 @@ import { useMigrationProgress } from '../hooks/useMigrationProgress';
 import type { MigrationProject, MigrationResult, ValidationResult } from '../types';
 
 function useSafeMsal(): PublicClientApplication | null {
-  try {
-    const { instance } = useMsal();
-    return instance as PublicClientApplication;
-  } catch {
-    return null;
-  }
+  const { instance, accounts } = useMsal();
+  if (accounts.length === 0) return null;
+  return instance as PublicClientApplication;
 }
 
 const useStyles = makeStyles({
