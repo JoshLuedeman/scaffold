@@ -29,5 +29,12 @@ RUN dotnet publish src/Scaffold.Api/Scaffold.Api.csproj -c Release -o /app/publi
 
 FROM base AS final
 WORKDIR /app
-COPY --from=build /app/publish .
+
+# Create non-root user
+RUN adduser --disabled-password --gecos "" --uid 1000 appuser \
+    && chown -R appuser:appuser /app
+
+COPY --from=build --chown=appuser:appuser /app/publish .
+
+USER appuser
 ENTRYPOINT ["dotnet", "Scaffold.Api.dll"]

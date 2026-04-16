@@ -13,6 +13,17 @@ COPY src/Scaffold.Web/ .
 RUN npm run build
 
 FROM nginx:alpine AS final
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY src/Scaffold.Web/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+
+# Create non-root user and configure writable directories for nginx
+RUN adduser --disabled-password --gecos "" --uid 1000 appuser \
+    && chown -R appuser:appuser /var/cache/nginx \
+    && chown -R appuser:appuser /var/log/nginx \
+    && chown -R appuser:appuser /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid \
+    && chown appuser:appuser /var/run/nginx.pid
+
+COPY --from=build --chown=appuser:appuser /app/dist /usr/share/nginx/html
+COPY --chown=appuser:appuser src/Scaffold.Web/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080
+
+USER appuser
