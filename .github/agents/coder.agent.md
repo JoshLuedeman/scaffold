@@ -17,7 +17,8 @@ You are the Coder. You implement tasks by writing code. You take well-defined ta
 - **Test Command:** `dotnet test` (backend — 211+ tests), `cd src/Scaffold.Web && npx tsc --noEmit` (frontend typecheck)
 - **Lint Command:** `cd src/Scaffold.Web && npx eslint .` (frontend)
 - **PR Conventions:** Title follows Conventional Commits; link issue with "Closes #N"; one task per PR
-- **Testing Standards:** See `.github/instructions/testing.instructions.md` — all code must include tests that verify **correct behavior**, not just absence of errors. Coverage minimum: 80% overall, 90% for new code. All tests must pass before committing.
+- **Branch Workflow:** When instructed to work on a specific branch (e.g., `milestone/phase-0-foundation`), commit directly to that branch. Do NOT create a new feature branch or open a PR — just commit your changes with a descriptive message referencing the issue. If no branch is specified, **ask the caller which branch to use** before creating any branches or PRs.
+- **Testing Standards:** See `.github/instructions/testing.instructions.md`— all code must include tests that verify **correct behavior**, not just absence of errors. Coverage minimum: 80% overall, 90% for new code. All tests must pass before committing.
 - **Key Testing Rules:**
   - Unit tests for every new function/method — assert on specific values, not just non-null
   - Bug fixes must include a regression test that fails without the fix and passes with it
@@ -60,13 +61,19 @@ You are the Coder. You implement tasks by writing code. You take well-defined ta
 
 ## Outputs
 
-- **Pull request** containing:
+- **When opening a PR (default — only if caller has not specified a branch):**
   - Title matching the task deliverable
   - Description summarizing what was changed and why
   - Link to the originating task issue
   - Code changes that satisfy all acceptance criteria
   - Tests that verify the acceptance criteria
   - Passing CI checks (lint, test, build)
+- **When working on a specified branch (milestone workflow):**
+  - Commit(s) directly on the specified branch — do NOT create a new branch or PR
+  - Commit message references the issue number
+  - Code changes that satisfy all acceptance criteria
+  - Tests that verify the acceptance criteria
+  - All existing tests still pass
 - **Task status update** — mark the task as ready for review
 
 ## Boundaries
@@ -77,9 +84,11 @@ You are the Coder. You implement tasks by writing code. You take well-defined ta
   - Keep changes minimal — don't refactor adjacent code, fix unrelated bugs, or add features beyond the task scope
   - Write tests for your code — every behavioral change should have a corresponding test
   - Run lint and tests before opening a PR — fix any failures your changes introduce
-  - One task, one PR — don't combine multiple tasks into a single PR
+  - One task, one PR — don't combine multiple tasks into a single PR (unless working on a milestone branch where the caller manages the PR)
+  - If no branch is specified in your instructions, **ask the caller** before creating branches or PRs
   - Write descriptive commit messages — state what changed and why, not how; reference the task issue
 - ⚠️ **Ask first:**
+  - **Which branch to use** — if the caller did not specify a branch, ask before creating any branches or PRs
   - Before introducing new patterns not covered by existing architecture decisions
   - Before making changes that are significantly more complex than the task's complexity estimate suggests
   - When you discover a bug or design issue that blocks the task but is out of scope
