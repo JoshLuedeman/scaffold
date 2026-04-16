@@ -66,7 +66,9 @@ public class MigrationPlanController : ControllerBase
                 PostMigrationScripts = MapScripts(request.PostMigrationScripts, request.PostMigrationScript, MigrationScriptPhase.Post),
                 TargetTier = targetTier,
                 UseExistingTarget = request.UseExistingTarget,
-                ExistingTargetConnectionString = request.ExistingTargetConnectionString
+                ExistingTargetConnectionString = request.ExistingTargetConnectionString,
+                SourcePlatform = request.SourcePlatform ?? DatabasePlatform.SqlServer,
+                TargetPlatform = request.TargetPlatform ?? DatabasePlatform.SqlServer
             };
 
             // Auto-populate source connection string from project's assessed connection
@@ -143,6 +145,8 @@ public class MigrationPlanController : ControllerBase
                 plan.PostMigrationScripts = MapScripts(request.PostMigrationScripts, request.PostMigrationScript, MigrationScriptPhase.Post);
             if (request.UseExistingTarget.HasValue) plan.UseExistingTarget = request.UseExistingTarget.Value;
             if (!string.IsNullOrEmpty(request.ExistingTargetConnectionString)) plan.ExistingTargetConnectionString = request.ExistingTargetConnectionString;
+            if (request.SourcePlatform.HasValue) plan.SourcePlatform = request.SourcePlatform.Value;
+            if (request.TargetPlatform.HasValue) plan.TargetPlatform = request.TargetPlatform.Value;
 
             if (request.TargetTierOverride is { } t)
             {

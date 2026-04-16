@@ -7,6 +7,8 @@ public class MigrationPlan
 {
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
+    public DatabasePlatform SourcePlatform { get; set; } = DatabasePlatform.SqlServer;
+    public DatabasePlatform TargetPlatform { get; set; } = DatabasePlatform.SqlServer;
     public MigrationStrategy Strategy { get; set; }
     public List<string> IncludedObjects { get; set; } = [];
     public List<string> ExcludedObjects { get; set; } = [];
