@@ -94,6 +94,66 @@ public static class CompatibilityMatrix
             ["Custom WAL Handlers"] = BuildRow(
                 CompatibilitySeverity.Unsupported, CompatibilitySeverity.Supported,
                 "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-limits"),
+
+            ["Deprecated Data Types (money precision)"] = BuildRow(
+                CompatibilitySeverity.Partial, CompatibilitySeverity.Supported,
+                "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-limits"),
+
+            ["PL/Python"] = BuildRow(
+                CompatibilitySeverity.Unsupported, CompatibilitySeverity.Supported,
+                "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-extensions"),
+
+            ["PL/Perl"] = BuildRow(
+                CompatibilitySeverity.Unsupported, CompatibilitySeverity.Supported,
+                "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-extensions"),
+
+            ["PL/Tcl"] = BuildRow(
+                CompatibilitySeverity.Unsupported, CompatibilitySeverity.Supported,
+                "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-extensions"),
+
+            ["Custom Collation"] = BuildRow(
+                CompatibilitySeverity.Partial, CompatibilitySeverity.Supported,
+                "https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-limits"),
+
+            ["Multiple Databases Per Instance"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Connection Pooling (PgBouncer)"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Large Objects (> 1GB)"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Full Text Search"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["XML Processing"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["JSONB"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Array Types"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Range Types"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Composite Types"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
+
+            ["Domain Types"] = BuildRow(
+                CompatibilitySeverity.Supported, CompatibilitySeverity.Supported,
+                ""),
         };
 
     private const string FlexibleServer = "Azure Database for PostgreSQL - Flexible Server";
