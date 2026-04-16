@@ -1,9 +1,9 @@
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 using Scaffold.Core.Enums;
 
 namespace Scaffold.Core.Models;
 
-public class MigrationPlan
+public class MigrationPlan : AuditableEntity
 {
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
@@ -32,7 +32,6 @@ public class MigrationPlan
     public MigrationStatus Status { get; set; } = MigrationStatus.Pending;
     public Guid? MigrationId { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? TargetRegion { get; set; }
     public bool IsApproved { get; set; }
     public string? ApprovedBy { get; set; }

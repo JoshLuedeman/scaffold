@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -10,6 +10,29 @@ namespace Scaffold.Infrastructure.Data;
 public class ScaffoldDbContext : DbContext
 {
     public ScaffoldDbContext(DbContextOptions<ScaffoldDbContext> options) : base(options) { }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var utcNow = DateTime.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    entry.Entity.CreatedAt = utcNow;
+                    entry.Entity.UpdatedAt = utcNow;
+                    break;
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = utcNow;
+                    // Prevent CreatedAt from being changed on update
+                    entry.Property(nameof(AuditableEntity.CreatedAt)).IsModified = false;
+                    break;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
 
     public DbSet<MigrationProject> MigrationProjects => Set<MigrationProject>();
     public DbSet<ConnectionInfo> ConnectionInfos => Set<ConnectionInfo>();
