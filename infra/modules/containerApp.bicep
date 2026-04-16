@@ -16,10 +16,28 @@ param azureClientId string = ''
 @description('Entra ID Tenant ID')
 param azureTenantId string = ''
 
+@description('Application Insights connection string')
+param appInsightsConnectionString string = ''
+
+@description('Log Analytics workspace customer ID for container app environment logs')
+param logAnalyticsCustomerId string = ''
+
+@description('Log Analytics workspace shared key for container app environment logs')
+@secure()
+param logAnalyticsSharedKey string = ''
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: '${prefix}-env'
   location: location
-  properties: {}
+  properties: {
+    appLogsConfiguration: !empty(logAnalyticsCustomerId) ? {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsCustomerId
+        sharedKey: logAnalyticsSharedKey
+      }
+    } : null
+  }
 }
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
@@ -53,6 +71,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           }
           env: concat(
             !empty(sqlConnectionString) ? [{ name: 'ConnectionStrings__DefaultConnection', value: sqlConnectionString }] : [],
+            !empty(appInsightsConnectionString) ? [{ name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }] : [],
             !empty(azureClientId) ? [
               { name: 'AzureAd__TenantId', value: azureTenantId }
               { name: 'AzureAd__ClientId', value: azureClientId }

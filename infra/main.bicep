@@ -18,6 +18,23 @@ param azureTenantId string = tenant().tenantId
 
 var prefix = 'scaffold-${environmentName}'
 
+module logAnalytics 'modules/logAnalytics.bicep' = {
+  name: 'logAnalytics'
+  params: {
+    prefix: prefix
+    location: location
+  }
+}
+
+module appInsights 'modules/appInsights.bicep' = {
+  name: 'appInsights'
+  params: {
+    prefix: prefix
+    location: location
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+  }
+}
+
 module sql 'modules/sqlDatabase.bicep' = {
   name: 'sql'
   params: {
@@ -44,6 +61,9 @@ module containerApp 'modules/containerApp.bicep' = {
     corsOrigin: 'https://${staticWebApp.outputs.defaultHostname}'
     azureClientId: azureClientId
     azureTenantId: azureTenantId
+    appInsightsConnectionString: appInsights.outputs.connectionString
+    logAnalyticsCustomerId: logAnalytics.outputs.customerId
+    logAnalyticsSharedKey: logAnalytics.outputs.primarySharedKey
   }
 }
 
@@ -82,3 +102,5 @@ output containerAppFqdn string = containerApp.outputs.containerAppFqdn
 output staticWebAppHostname string = staticWebApp.outputs.defaultHostname
 output acrLoginServer string = acr.outputs.loginServer
 output acrName string = acr.outputs.name
+output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
+output appInsightsConnectionString string = appInsights.outputs.connectionString
