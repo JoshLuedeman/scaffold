@@ -240,8 +240,8 @@ public class DdlTranslator
                 break;
         }
 
-        // Replace [column] with "column"
-        result = Regex.Replace(result, @"\[([^\]]+)\]", "\"$1\"");
+        // Replace [column] with "column" (using QuoteIdentifier to escape embedded double quotes)
+        result = Regex.Replace(result, @"\[([^\]]+)\]", m => QuoteIdentifier(m.Groups[1].Value));
 
         return result;
     }
@@ -271,8 +271,8 @@ public class DdlTranslator
                 break;
         }
 
-        // Replace [column] with "column"
-        result = Regex.Replace(result, @"\[([^\]]+)\]", "\"$1\"");
+        // Replace [column] with "column" (using QuoteIdentifier to escape embedded double quotes)
+        result = Regex.Replace(result, @"\[([^\]]+)\]", m => QuoteIdentifier(m.Groups[1].Value));
 
         return result;
     }

@@ -597,6 +597,7 @@ public class DdlTranslatorTests
     [InlineData("Users", "\"Users\"")]
     [InlineData("my table", "\"my table\"")]
     [InlineData("Id", "\"Id\"")]
+    [InlineData("col\"name", "\"col\"\"name\"")]
     public void QuoteIdentifier_WrapsInDoubleQuotes(string input, string expected)
     {
         Assert.Equal(expected, DdlTranslator.QuoteIdentifier(input));
@@ -615,6 +616,15 @@ public class DdlTranslatorTests
         Assert.Equal(expected, DdlTranslator.TranslateCheckExpression(input));
     }
 
+    [Fact]
+    public void TranslateCheckExpression_EscapesDoubleQuotesInIdentifiers()
+    {
+        // A column name containing a double quote must be escaped as "" inside PG identifier quoting
+        var result = DdlTranslator.TranslateCheckExpression("[col\"name] > 0");
+
+        Assert.Equal("\"col\"\"name\" > 0", result);
+    }
+
     #endregion
 
     #region TranslateFilterExpression
@@ -625,6 +635,15 @@ public class DdlTranslatorTests
     public void TranslateFilterExpression_TranslatesCorrectly(string input, string expected)
     {
         Assert.Equal(expected, DdlTranslator.TranslateFilterExpression(input));
+    }
+
+    [Fact]
+    public void TranslateFilterExpression_EscapesDoubleQuotesInIdentifiers()
+    {
+        // A column name containing a double quote must be escaped as "" inside PG identifier quoting
+        var result = DdlTranslator.TranslateFilterExpression("[col\"name] > 0");
+
+        Assert.Equal("\"col\"\"name\" > 0", result);
     }
 
     #endregion

@@ -118,7 +118,7 @@ public class CrossPlatformBulkCopier
 
         // 2. Build PG COPY command
         var pgTableName = QuotePgName(tableName);
-        var pgColumns = string.Join(", ", columnNames.Select(n => $"\"{n}\""));
+        var pgColumns = string.Join(", ", columnNames.Select(n => $"\"{n.Replace("\"", "\"\"")}\""));
         var copyCommand = $"COPY {pgTableName} ({pgColumns}) FROM STDIN (FORMAT BINARY)";
 
         // 3. Open PG connection and stream data within a transaction
