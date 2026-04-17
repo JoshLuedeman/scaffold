@@ -15,7 +15,7 @@ public class DdlTranslator
     /// Generates all PostgreSQL DDL for the given table definitions, in dependency order.
     /// Returns: CREATE TABLE statements, then ALTER TABLE for FKs, then CREATE INDEX.
     /// </summary>
-    public List<string> TranslateSchema(IReadOnlyList<TableDefinition> tables)
+    public virtual List<string> TranslateSchema(IReadOnlyList<TableDefinition> tables)
     {
         var ddl = new List<string>();
         var ordered = TopologicalSort(tables);
