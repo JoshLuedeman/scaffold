@@ -113,3 +113,13 @@ export function getStrategyInfo(platform?: DatabasePlatform): Record<MigrationSt
 export function objectKey(obj: { schema: string; name: string }): string {
   return `${obj.schema}.${obj.name}`;
 }
+
+export function getCostBarColor(cost: number, minCost: number, maxCost: number): string {
+  if (maxCost === minCost) return '#4caf50';
+  const ratio = (cost - minCost) / (maxCost - minCost);
+  // Green (#4caf50) → Amber (#ff9800)
+  const r = Math.round(76 + ratio * (255 - 76));
+  const g = Math.round(175 + ratio * (152 - 175));
+  const b = Math.round(80 + ratio * (0 - 80));
+  return `rgb(${r}, ${g}, ${b})`;
+}
