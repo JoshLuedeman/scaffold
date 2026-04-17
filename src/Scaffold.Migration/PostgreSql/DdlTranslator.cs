@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using Scaffold.Migration.PostgreSql.Models;
+using Scaffold.Migration.Shared;
 
 namespace Scaffold.Migration.PostgreSql;
 
@@ -192,13 +193,12 @@ public class DdlTranslator
     /// Maps a SQL Server schema name to its PostgreSQL equivalent.
     /// "dbo" becomes "public"; all others are preserved.
     /// </summary>
-    public static string MapSchema(string schema)
-        => schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) ? "public" : schema;
+    public static string MapSchema(string schema) => PgIdentifierHelper.MapSchema(schema);
 
     /// <summary>
     /// Wraps an identifier in PostgreSQL double-quotes.
     /// </summary>
-    public static string QuoteIdentifier(string name) => $"\"{name.Replace("\"", "\"\"")}\"";
+    public static string QuoteIdentifier(string name) => PgIdentifierHelper.QuoteIdentifier(name);
 
     private static readonly HashSet<string> ValidReferentialActions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -283,61 +283,9 @@ public class DdlTranslator
     /// </summary>
     internal static List<TableDefinition> TopologicalSort(IReadOnlyList<TableDefinition> tables)
     {
-        var tableKeys = new HashSet<string>(
-            tables.Select(t => $"{t.Schema}.{t.TableName}"),
-            StringComparer.OrdinalIgnoreCase);
-
-        // Build adjacency: table → set of tables it depends on
-        var deps = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        var tableByKey = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var t in tables)
-        {
-            var key = $"{t.Schema}.{t.TableName}";
-            tableByKey[key] = t;
-            deps[key] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var fk in t.ForeignKeys)
-            {
-                var refKey = $"{fk.ReferencedSchema}.{fk.ReferencedTable}";
-                // Only add dependency if the referenced table is in our set
-                // and it's not a self-reference
-                if (tableKeys.Contains(refKey) && !string.Equals(refKey, key, StringComparison.OrdinalIgnoreCase))
-                {
-                    deps[key].Add(refKey);
-                }
-            }
-        }
-
-        // Kahn's algorithm
-        var result = new List<TableDefinition>();
-        var noDeps = new Queue<string>(deps.Where(d => d.Value.Count == 0).Select(d => d.Key));
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        while (noDeps.Count > 0)
-        {
-            var key = noDeps.Dequeue();
-            if (!visited.Add(key)) continue;
-
-            result.Add(tableByKey[key]);
-
-            foreach (var (otherKey, otherDeps) in deps)
-            {
-                if (visited.Contains(otherKey)) continue;
-                otherDeps.Remove(key);
-                if (otherDeps.Count == 0)
-                    noDeps.Enqueue(otherKey);
-            }
-        }
-
-        // Add any remaining (circular dependencies) in original order
-        foreach (var t in tables)
-        {
-            var key = $"{t.Schema}.{t.TableName}";
-            if (!visited.Contains(key))
-                result.Add(t);
-        }
-
-        return result;
+        return TopologicalSorter.Sort(
+            tables,
+            t => $"{t.Schema}.{t.TableName}",
+            t => t.ForeignKeys.Select(fk => $"{fk.ReferencedSchema}.{fk.ReferencedTable}"));
     }
 }
