@@ -120,6 +120,9 @@ public class MigrationSchedulerService : BackgroundService
         var targetConnStr = protector.Unprotect(plan.ExistingTargetConnectionString!);
         plan.SourceConnectionString = sourceConnStr;
         plan.ExistingTargetConnectionString = targetConnStr;
+        // Prevent EF from persisting decrypted values back to the database
+        db.Entry(plan).Property(p => p.SourceConnectionString).IsModified = false;
+        db.Entry(plan).Property(p => p.ExistingTargetConnectionString).IsModified = false;
 
         try
         {

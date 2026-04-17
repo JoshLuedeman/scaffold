@@ -108,6 +108,9 @@ public class MigrationController : ControllerBase
                     // Set decrypted connection strings on plan for engine use
                     plan.SourceConnectionString = sourceConnStr;
                     plan.ExistingTargetConnectionString = targetConnStr;
+                    // Prevent EF from persisting decrypted values back to the database
+                    _dbContext.Entry(plan).Property(p => p.SourceConnectionString).IsModified = false;
+                    _dbContext.Entry(plan).Property(p => p.ExistingTargetConnectionString).IsModified = false;
 
                     Core.Models.MigrationResult result;
 
