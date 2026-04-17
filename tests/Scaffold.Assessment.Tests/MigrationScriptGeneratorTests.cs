@@ -16,6 +16,18 @@ public class MigrationScriptGeneratorTests
     private static SchemaObject ForeignKey(string name, string parentTable, string schema = "dbo")
         => new() { Name = name, Schema = schema, ObjectType = "Constraint", SubType = "FOREIGN KEY", ParentObjectName = parentTable };
 
+    private static SchemaObject ForeignKeyFull(
+        string name, string parentTable, string columns, string referencedTable,
+        string referencedColumns, string deleteAction = "NO_ACTION", string updateAction = "NO_ACTION",
+        string schema = "dbo", string referencedSchema = "dbo")
+        => new()
+        {
+            Name = name, Schema = schema, ObjectType = "Constraint", SubType = "FOREIGN KEY",
+            ParentObjectName = parentTable, Columns = columns, ReferencedTable = referencedTable,
+            ReferencedColumns = referencedColumns, ReferencedSchema = referencedSchema,
+            DeleteAction = deleteAction, UpdateAction = updateAction
+        };
+
     private static SchemaObject CheckConstraint(string name, string parentTable, string schema = "dbo")
         => new() { Name = name, Schema = schema, ObjectType = "Constraint", SubType = "CHECK", ParentObjectName = parentTable };
 
@@ -205,13 +217,13 @@ public class MigrationScriptGeneratorTests
     }
 
     [Fact]
-    public void GetAvailableScripts_Returns10Scripts()
+    public void GetAvailableScripts_Returns12Scripts()
     {
         var schema = BuildSchema(Table("T1"));
 
         var scripts = MigrationScriptGenerator.GetAvailableScripts(schema);
 
-        Assert.Equal(10, scripts.Count);
+        Assert.Equal(12, scripts.Count);
     }
 
     [Fact]
@@ -225,4 +237,210 @@ public class MigrationScriptGeneratorTests
 
         Assert.Contains("ALTER TABLE [Sales].[Orders] DROP CONSTRAINT [FK_Orders_Customer]", result);
     }
+
+    #region FK Creation — SQL Server syntax
+
+    [Fact]
+    public void GenerateApplyForeignKeys_WithFullMetadata_ProducesAlterTableAddConstraint()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            Table("Customers"),
+            ForeignKeyFull("FK_Orders_Customer", "Orders", "CustomerId", "Customers", "Id"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [FK_Orders_Customer]", result);
+        Assert.Contains("FOREIGN KEY ([CustomerId]) REFERENCES [dbo].[Customers] ([Id])", result);
+        Assert.Contains("ON DELETE NO ACTION ON UPDATE NO ACTION", result);
+    }
+
+    [Fact]
+    public void GenerateApplyForeignKeys_CascadeDelete_IncludesAction()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            Table("Customers"),
+            ForeignKeyFull("FK_Orders_Customer", "Orders", "CustomerId", "Customers", "Id", deleteAction: "CASCADE"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("ON DELETE CASCADE", result);
+    }
+
+    [Fact]
+    public void GenerateApplyForeignKeys_SetNull_IncludesAction()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            Table("Customers"),
+            ForeignKeyFull("FK_Orders_Customer", "Orders", "CustomerId", "Customers", "Id",
+                deleteAction: "SET_NULL", updateAction: "SET_NULL"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("ON DELETE SET NULL ON UPDATE SET NULL", result);
+    }
+
+    [Fact]
+    public void GenerateApplyForeignKeys_MultipleColumns_FormatsCorrectly()
+    {
+        var schema = BuildSchema(
+            Table("OrderItems"),
+            Table("Orders"),
+            ForeignKeyFull("FK_OrderItems_Orders", "OrderItems", "OrderId,LineNumber", "Orders", "Id,LineNumber"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("FOREIGN KEY ([OrderId], [LineNumber]) REFERENCES [dbo].[Orders] ([Id], [LineNumber])", result);
+    }
+
+    [Fact]
+    public void GenerateApplyForeignKeys_MissingMetadata_FallsBackToCheckCheck()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            ForeignKey("FK_Orders_Customer", "Orders"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("WITH CHECK CHECK CONSTRAINT [FK_Orders_Customer]", result);
+    }
+
+    [Fact]
+    public void GenerateApplyForeignKeys_Empty_ReturnsNoForeignKeys()
+    {
+        var schema = BuildSchema(Table("Orders"));
+
+        var result = MigrationScriptGenerator.GenerateApplyForeignKeys(schema);
+
+        Assert.Contains("No foreign keys to restore", result);
+    }
+
+    #endregion
+
+    #region FK Creation — PostgreSQL syntax
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_ProducesQuotedIdentifiers()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            Table("Customers"),
+            ForeignKeyFull("FK_Orders_Customer", "Orders", "CustomerId", "Customers", "Id"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("ALTER TABLE \"public\".\"Orders\" ADD CONSTRAINT \"FK_Orders_Customer\"", result);
+        Assert.Contains("FOREIGN KEY (\"CustomerId\") REFERENCES \"dbo\".\"Customers\" (\"Id\")", result);
+        Assert.Contains("ON DELETE NO ACTION ON UPDATE NO ACTION", result);
+    }
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_CascadeDelete()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            Table("Customers"),
+            ForeignKeyFull("FK_Orders_Customer", "Orders", "CustomerId", "Customers", "Id",
+                deleteAction: "CASCADE", updateAction: "SET_NULL"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("ON DELETE CASCADE ON UPDATE SET NULL", result);
+    }
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_MapsDboToPublic()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            ForeignKeyFull("FK_Test", "Orders", "Col1", "RefTable", "Col1"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("\"public\".\"Orders\"", result);
+    }
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_NonDboSchema_Preserved()
+    {
+        var schema = BuildSchema(
+            Table("Orders", "Sales"),
+            ForeignKeyFull("FK_Test", "Orders", "Col1", "RefTable", "Col1",
+                schema: "Sales", referencedSchema: "Warehouse"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("\"Sales\".\"Orders\"", result);
+        Assert.Contains("\"Warehouse\".\"RefTable\"", result);
+    }
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_MissingMetadata_ProducesWarning()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            ForeignKey("FK_Missing", "Orders"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("WARNING", result);
+        Assert.Contains("FK_Missing", result);
+    }
+
+    [Fact]
+    public void GenerateCreateForeignKeysPostgreSql_Empty_ReturnsNoForeignKeys()
+    {
+        var schema = BuildSchema(Table("Orders"));
+
+        var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
+
+        Assert.Contains("No foreign keys to create", result);
+    }
+
+    #endregion
+
+    #region Generate lookup — new script IDs
+
+    [Fact]
+    public void Generate_CreateForeignKeys_ReturnsNonNull()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            ForeignKeyFull("FK_Test", "Orders", "Col1", "RefTable", "Col1"));
+
+        var result = MigrationScriptGenerator.Generate("create-foreign-keys", schema);
+
+        Assert.NotNull(result);
+        Assert.Contains("FK_Test", result);
+    }
+
+    [Fact]
+    public void Generate_CreateForeignKeysPg_ReturnsNonNull()
+    {
+        var schema = BuildSchema(
+            Table("Orders"),
+            ForeignKeyFull("FK_Test", "Orders", "Col1", "RefTable", "Col1"));
+
+        var result = MigrationScriptGenerator.Generate("create-foreign-keys-pg", schema);
+
+        Assert.NotNull(result);
+        Assert.Contains("FK_Test", result);
+    }
+
+    [Fact]
+    public void GetAvailableScripts_ContainsNewFkScripts()
+    {
+        var schema = BuildSchema(
+            Table("T1"),
+            ForeignKeyFull("FK1", "T1", "C1", "T2", "C2"));
+
+        var scripts = MigrationScriptGenerator.GetAvailableScripts(schema);
+
+        Assert.Contains(scripts, s => s.ScriptId == "create-foreign-keys");
+        Assert.Contains(scripts, s => s.ScriptId == "create-foreign-keys-pg");
+    }
+
+    #endregion
 }
