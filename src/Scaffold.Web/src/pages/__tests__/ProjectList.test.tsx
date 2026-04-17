@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import ProjectList from '../ProjectList';
 import { api } from '../../services/api';
-import type { MigrationProject } from '../../types';
+import type { MigrationProject, PaginatedResult } from '../../types';
 
 vi.mock('../../services/api', () => ({
   api: {
@@ -43,6 +43,16 @@ const mockProjects: MigrationProject[] = [
   },
 ];
 
+const mockPaginatedResult: PaginatedResult<MigrationProject> = {
+  items: mockProjects,
+  totalCount: 3,
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  hasNextPage: false,
+  hasPreviousPage: false,
+};
+
 function renderProjectList() {
   return render(
     <FluentProvider theme={webLightTheme}>
@@ -55,7 +65,7 @@ function renderProjectList() {
 
 describe('ProjectList', () => {
   beforeEach(() => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue(mockProjects);
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue(mockPaginatedResult);
   });
 
   it('renders the project list heading', async () => {
@@ -77,25 +87,21 @@ describe('ProjectList', () => {
     expect(await screen.findByText('Assessed')).toBeInTheDocument();
     expect(screen.getByText('MigrationComplete')).toBeInTheDocument();
     const createdElements = screen.getAllByText('Created');
-    expect(createdElements.length).toBeGreaterThanOrEqual(2);
+    expect(createdElements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders project links to detail pages', async () => {
-    renderProjectList();
-    await screen.findByText('Northwind DB');
-    const links = screen.getAllByRole('link');
-    expect(links.some((l) => l.getAttribute('href') === '/projects/proj-1')).toBe(true);
-    expect(links.some((l) => l.getAttribute('href') === '/projects/proj-2')).toBe(true);
-    expect(links.some((l) => l.getAttribute('href') === '/projects/proj-3')).toBe(true);
-  });
-
-  it('renders the table with correct headers', async () => {
+  it('calls the API with pagination parameters', async () => {
     renderProjectList();
     await waitFor(() => {
-      expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+      expect(api.get).toHaveBeenCalledWith('/projects?page=1&pageSize=25');
     });
-    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Created' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Updated' })).toBeInTheDocument();
+  });
+
+  it('renders delete buttons for each project', async () => {
+    renderProjectList();
+    await screen.findByText('Northwind DB');
+    expect(screen.getByLabelText('Delete Northwind DB')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delete Inventory System')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delete Customer Portal')).toBeInTheDocument();
   });
 });

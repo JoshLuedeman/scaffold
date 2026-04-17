@@ -23,7 +23,7 @@ import {
   FolderOpenRegular,
 } from '@fluentui/react-icons';
 import { api } from '../services/api';
-import type { MigrationProject, ProjectStatus } from '../types';
+import type { MigrationProject, PaginatedResult, ProjectStatus } from '../types';
 
 const statusColor: Record<ProjectStatus, BadgeProps['color']> = {
   Created: 'informative',
@@ -137,8 +137,8 @@ export default function ProjectList() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get<MigrationProject[]>('/projects');
-      setProjects(data);
+      const data = await api.get<PaginatedResult<MigrationProject>>('/projects?page=1&pageSize=25');
+      setProjects(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
