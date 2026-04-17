@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 
 namespace Scaffold.Api.Controllers;
@@ -17,9 +18,10 @@ public class PricingController : ControllerBase
     }
 
     [HttpGet("regions")]
-    public async Task<IActionResult> GetRegions()
+    public async Task<IActionResult> GetRegions(
+        [FromQuery] DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
-        var regions = await _pricingService.GetAvailableRegionsAsync();
+        var regions = await _pricingService.GetAvailableRegionsAsync(platform);
         return Ok(regions);
     }
 
@@ -27,9 +29,10 @@ public class PricingController : ControllerBase
     public async Task<IActionResult> GetEstimate(
         [FromQuery] string service,
         [FromQuery] string compute,
-        [FromQuery] int storageGb = 32)
+        [FromQuery] int storageGb = 32,
+        [FromQuery] DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
-        var pricing = await _pricingService.GetPricingForTierAsync(service, compute, storageGb);
+        var pricing = await _pricingService.GetPricingForTierAsync(service, compute, storageGb, platform);
         var sorted = pricing.OrderBy(p => p.EstimatedMonthlyCostUsd).ToList();
         return Ok(sorted);
     }

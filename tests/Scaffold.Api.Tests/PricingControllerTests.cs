@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Scaffold.Api.Tests.Infrastructure;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
@@ -13,12 +14,12 @@ namespace Scaffold.Api.Tests;
 
 public class StubAzurePricingService : IAzurePricingService
 {
-    public Task<List<string>> GetAvailableRegionsAsync()
+    public Task<List<string>> GetAvailableRegionsAsync(DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
         return Task.FromResult(new List<string> { "eastus", "westus2", "westeurope" });
     }
 
-    public Task<List<RegionPricing>> GetPricingForTierAsync(string serviceTier, string computeSize, int storageGb)
+    public Task<List<RegionPricing>> GetPricingForTierAsync(string serviceTier, string computeSize, int storageGb, DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
         return Task.FromResult(new List<RegionPricing>
         {
@@ -110,6 +111,70 @@ public class PricingControllerTests : IClassFixture<PricingWebApplicationFactory
         var pricing = await response.Content.ReadFromJsonAsync<List<RegionPricing>>(_jsonOptions);
         Assert.NotNull(pricing);
         Assert.Equal(3, pricing.Count);
+    }
+
+    // ── Multi-platform support ──────────────────────────────────────
+
+    [Theory]
+    [InlineData(DatabasePlatform.SqlServer)]
+    [InlineData(DatabasePlatform.PostgreSql)]
+    public async Task GetRegions_WithPlatform_ReturnsRegions(DatabasePlatform platform)
+    {
+        var response = await _client.GetAsync($"/api/pricing/regions?platform={platform}");
+
+        response.EnsureSuccessStatusCode();
+        var regions = await response.Content.ReadFromJsonAsync<List<string>>(_jsonOptions);
+        Assert.NotNull(regions);
+        Assert.Equal(3, regions.Count);
+    }
+
+    [Fact]
+    public async Task GetRegions_NoPlatform_DefaultsToSqlServer()
+    {
+        // Omitting platform parameter should default to SqlServer and still work
+        var response = await _client.GetAsync("/api/pricing/regions");
+
+        response.EnsureSuccessStatusCode();
+        var regions = await response.Content.ReadFromJsonAsync<List<string>>(_jsonOptions);
+        Assert.NotNull(regions);
+        Assert.NotEmpty(regions);
+    }
+
+    [Fact]
+    public async Task GetEstimate_PostgreSqlPlatform_ReturnsPricing()
+    {
+        var response = await _client.GetAsync(
+            "/api/pricing/estimate?service=Azure+Database+for+PostgreSQL+-+Flexible+Server&compute=GP_Standard_D2s_v3&storageGb=32&platform=PostgreSql");
+
+        response.EnsureSuccessStatusCode();
+        var pricing = await response.Content.ReadFromJsonAsync<List<RegionPricing>>(_jsonOptions);
+        Assert.NotNull(pricing);
+        Assert.NotEmpty(pricing);
+    }
+
+    [Theory]
+    [InlineData(DatabasePlatform.SqlServer)]
+    [InlineData(DatabasePlatform.PostgreSql)]
+    public async Task GetEstimate_AllPlatforms_ReturnsSortedPricing(DatabasePlatform platform)
+    {
+        var service = platform == DatabasePlatform.PostgreSql
+            ? "Azure+Database+for+PostgreSQL+-+Flexible+Server"
+            : "Azure+SQL+Database";
+        var compute = platform == DatabasePlatform.PostgreSql
+            ? "GP_Standard_D2s_v3"
+            : "GP_Gen5_2";
+
+        var response = await _client.GetAsync(
+            $"/api/pricing/estimate?service={service}&compute={compute}&storageGb=32&platform={platform}");
+
+        response.EnsureSuccessStatusCode();
+        var pricing = await response.Content.ReadFromJsonAsync<List<RegionPricing>>(_jsonOptions);
+        Assert.NotNull(pricing);
+        Assert.True(pricing.Count > 1);
+        for (int i = 1; i < pricing.Count; i++)
+        {
+            Assert.True(pricing[i].EstimatedMonthlyCostUsd >= pricing[i - 1].EstimatedMonthlyCostUsd);
+        }
     }
 }
 

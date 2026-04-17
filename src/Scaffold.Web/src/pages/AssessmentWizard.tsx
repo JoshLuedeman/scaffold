@@ -13,11 +13,13 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbButton,
+  RadioGroup,
+  Radio,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
 import { api } from '../services/api';
-import type { AssessmentReport as Report } from '../types';
+import type { AssessmentReport as Report, DatabasePlatform } from '../types';
 import AssessmentReport from '../components/AssessmentReport';
 
 type Step = 'connect' | 'assess' | 'review';
@@ -143,6 +145,7 @@ export default function AssessmentWizard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('connect');
+  const [platform, setPlatform] = useState<DatabasePlatform>('SqlServer');
   const [form, setForm] = useState<ConnectionForm>(initialForm);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -185,6 +188,7 @@ export default function AssessmentWizard() {
         server: form.server,
         database: form.database,
         port: parseInt(form.port, 10),
+        platform,
         useSqlAuthentication: form.useSqlAuth,
         username: form.useSqlAuth ? form.username : undefined,
         password: form.useSqlAuth ? form.password : undefined,
@@ -206,6 +210,7 @@ export default function AssessmentWizard() {
         server: form.server,
         database: form.database,
         port: parseInt(form.port, 10),
+        platform,
         useSqlAuthentication: form.useSqlAuth,
         username: form.useSqlAuth ? form.username : undefined,
         password: form.useSqlAuth ? form.password : undefined,
@@ -258,11 +263,11 @@ export default function AssessmentWizard() {
         <Text as="h2" size={700} weight="semibold">Assessment Wizard</Text>
       </div>
 
-      <div className={styles.stepper}>
+      <div className={styles.stepper} role="list" aria-label="Assessment wizard steps">
         {STEPS.map((s, i) => (
-          <div key={s.key} className={styles.stepItem}>
-            {i > 0 && <span className={styles.stepDivider} />}
-            <span className={stepCircleClass(i)}>{i + 1}</span>
+          <div key={s.key} className={styles.stepItem} role="listitem" aria-current={i === stepIndex ? 'step' : undefined}>
+            {i > 0 && <span className={styles.stepDivider} aria-hidden="true" />}
+            <span className={stepCircleClass(i)} aria-hidden="true">{i + 1}</span>
             <Text className={stepLabelClass(i)}>{s.label}</Text>
           </div>
         ))}
@@ -273,8 +278,26 @@ export default function AssessmentWizard() {
           <>
             <Text as="h3" size={500} weight="semibold">Source Database Connection</Text>
             <div className={styles.formGrid}>
-              <Field label="Server">
-                <Input value={form.server} onChange={(_, d) => { setForm((prev) => ({ ...prev, server: d.value })); setTestResult(null); }} placeholder="e.g. myserver.database.windows.net" />
+              <Field label="Database Platform" className={styles.fullWidth}>
+                <RadioGroup
+                  layout="horizontal"
+                  value={platform}
+                  onChange={(_e, data) => {
+                    const newPlatform = data.value as DatabasePlatform;
+                    setPlatform(newPlatform);
+                    setForm((prev) => ({
+                      ...prev,
+                      port: newPlatform === 'PostgreSql' ? '5432' : '1433',
+                    }));
+                    setTestResult(null);
+                  }}
+                >
+                  <Radio value="SqlServer" label="SQL Server" />
+                  <Radio value="PostgreSql" label="PostgreSQL" />
+                </RadioGroup>
+              </Field>
+              <Field label={platform === 'PostgreSql' ? 'Host' : 'Server'}>
+                <Input value={form.server} onChange={(_, d) => { setForm((prev) => ({ ...prev, server: d.value })); setTestResult(null); }} placeholder={platform === 'PostgreSql' ? 'e.g. myhost.postgres.database.azure.com' : 'e.g. myserver.database.windows.net'} />
               </Field>
               <Field label="Database">
                 <Input value={form.database} onChange={(_, d) => { setForm((prev) => ({ ...prev, database: d.value })); setTestResult(null); }} placeholder="e.g. MyDatabase" />
@@ -286,7 +309,7 @@ export default function AssessmentWizard() {
                 <Switch
                   checked={form.useSqlAuth}
                   onChange={(_, d) => { setForm((prev) => ({ ...prev, useSqlAuth: d.checked })); setTestResult(null); }}
-                  label="SQL Authentication"
+                  label={platform === 'PostgreSql' ? 'Password Authentication' : 'SQL Authentication'}
                 />
               </Field>
               {form.useSqlAuth && (
@@ -328,7 +351,7 @@ export default function AssessmentWizard() {
             ) : (
               <>
                 <Text as="h3" size={500} weight="semibold">Run Assessment</Text>
-                <Text>Analyze the source database for schema, data, performance, and compatibility with Azure SQL.</Text>
+                <Text>Analyze the source database for schema, data, performance, and compatibility with {platform === 'PostgreSql' ? 'Azure Database for PostgreSQL' : 'Azure SQL'}.</Text>
                 {error && (
                   <MessageBar intent="error">
                     <MessageBarBody>{error}</MessageBarBody>
@@ -350,7 +373,7 @@ export default function AssessmentWizard() {
         {step === 'review' && report && (
           <>
             <Text as="h3" size={500} weight="semibold">Assessment Results</Text>
-            <AssessmentReport report={report} projectId={id!} />
+            <AssessmentReport report={report} projectId={id!} platform={platform} />
             <div className={styles.reviewActions}>
               <Button appearance="secondary" onClick={() => setStep('assess')}>
                 ← Re-run

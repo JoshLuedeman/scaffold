@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Scaffold.Api.Controllers;
 using Scaffold.Api.Tests.Infrastructure;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Models;
 using Scaffold.Infrastructure.Data;
 
@@ -262,5 +264,144 @@ public class AssessmentControllerTests : IClassFixture<CustomWebApplicationFacto
         var report2 = await r2.Content.ReadFromJsonAsync<AssessmentReport>(_jsonOptions);
 
         Assert.NotEqual(report1!.Id, report2!.Id);
+    }
+
+    // ── Multi-platform support ──────────────────────────────────────
+
+    [Fact]
+    public async Task StartAssessment_WithPostgreSqlPlatform_SetsPlatformOnConnection()
+    {
+        var project = await CreateProjectAsync();
+
+        var request = new AssessmentRequest(
+            Server: "localhost",
+            Database: "TestDb",
+            Port: 5432,
+            UseSqlAuthentication: true,
+            Username: "postgres",
+            Password: "test",
+            TrustServerCertificate: true,
+            TargetService: null,
+            Platform: DatabasePlatform.PostgreSql);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.Id}/assessments", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var report = await response.Content.ReadFromJsonAsync<AssessmentReport>(_jsonOptions);
+        Assert.NotNull(report);
+        Assert.Equal(project.Id, report.ProjectId);
+    }
+
+    [Fact]
+    public async Task StartAssessment_NoPlatform_DefaultsToSqlServer()
+    {
+        var project = await CreateProjectAsync();
+
+        var request = new AssessmentRequest(
+            Server: "localhost",
+            Database: "TestDb",
+            Port: 1433,
+            UseSqlAuthentication: true,
+            Username: "sa",
+            Password: "test",
+            TrustServerCertificate: true,
+            TargetService: null);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.Id}/assessments", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Verify that the connection was created with SqlServer platform
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+        var updatedProject = await db.MigrationProjects
+            .Include(p => p.SourceConnection)
+            .FirstAsync(p => p.Id == project.Id);
+        Assert.NotNull(updatedProject.SourceConnection);
+        Assert.Equal(DatabasePlatform.SqlServer, updatedProject.SourceConnection.Platform);
+    }
+
+    [Fact]
+    public async Task StartAssessment_PostgreSqlPlatform_SetsCorrectDefaultPort()
+    {
+        var project = await CreateProjectAsync();
+
+        // Omit port — should default to 5432 for PostgreSql
+        var request = new AssessmentRequest(
+            Server: "localhost",
+            Database: "TestDb",
+            Port: null,
+            UseSqlAuthentication: true,
+            Username: "postgres",
+            Password: "test",
+            TrustServerCertificate: true,
+            TargetService: null,
+            Platform: DatabasePlatform.PostgreSql);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.Id}/assessments", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+        var updatedProject = await db.MigrationProjects
+            .Include(p => p.SourceConnection)
+            .FirstAsync(p => p.Id == project.Id);
+        Assert.NotNull(updatedProject.SourceConnection);
+        Assert.Equal(DatabasePlatform.PostgreSql, updatedProject.SourceConnection.Platform);
+        Assert.Equal(5432, updatedProject.SourceConnection.Port);
+    }
+
+    [Fact]
+    public async Task StartAssessment_MergesPlatformFromRequestToExistingConnection()
+    {
+        var project = await CreateProjectWithConnectionAsync();
+
+        var request = new AssessmentRequest(
+            Server: null,
+            Database: null,
+            Port: 5432,
+            UseSqlAuthentication: null,
+            Username: null,
+            Password: null,
+            TrustServerCertificate: null,
+            TargetService: null,
+            Platform: DatabasePlatform.PostgreSql);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.Id}/assessments", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(DatabasePlatform.SqlServer)]
+    [InlineData(DatabasePlatform.PostgreSql)]
+    public async Task StartAssessment_AllPlatforms_ReturnsReport(DatabasePlatform platform)
+    {
+        var project = await CreateProjectAsync();
+
+        var port = platform == DatabasePlatform.PostgreSql ? 5432 : 1433;
+        var request = new AssessmentRequest(
+            Server: "localhost",
+            Database: "TestDb",
+            Port: port,
+            UseSqlAuthentication: true,
+            Username: "testuser",
+            Password: "test",
+            TrustServerCertificate: true,
+            TargetService: null,
+            Platform: platform);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.Id}/assessments", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var report = await response.Content.ReadFromJsonAsync<AssessmentReport>(_jsonOptions);
+        Assert.NotNull(report);
+        Assert.Equal(project.Id, report.ProjectId);
     }
 }

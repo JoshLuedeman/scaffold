@@ -14,11 +14,34 @@ export type RiskRating = 'Low' | 'Medium' | 'High';
 
 export type CompatibilitySeverity = 'Supported' | 'Partial' | 'Unsupported';
 
+export type DatabasePlatform = 'SqlServer' | 'PostgreSql';
+
+export type MigrationStatus = 'Pending' | 'Scheduled' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
+
+export interface PaginatedResult<T> {
+  items: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface StrategyRecommendation {
+  recommendedStrategy: MigrationStrategy;
+  reasoning: string;
+  estimatedDowntimeCutover: string;
+  estimatedDowntimeContinuousSync?: string;
+  considerations: string[];
+}
+
 export interface ConnectionInfo {
   id: string;
   server: string;
   database: string;
   port: number;
+  platform: DatabasePlatform;
   useSqlAuthentication: boolean;
   username?: string;
   keyVaultSecretUri?: string;
@@ -39,6 +62,8 @@ export interface SchemaInventory {
   storedProcedureCount: number;
   indexCount: number;
   triggerCount: number;
+  extensionCount?: number;
+  sequenceCount?: number;
   objects: SchemaObject[];
 }
 
@@ -110,6 +135,7 @@ export interface AssessmentReport {
   recommendation: TierRecommendation;
   compatibilityScore: number;
   risk: RiskRating;
+  strategyRecommendation?: StrategyRecommendation;
 }
 
 export type MigrationScriptType = 'Canned' | 'Custom';
@@ -143,6 +169,13 @@ export interface MigrationPlan {
   createdAt: string;
   isApproved: boolean;
   approvedBy?: string;
+  sourcePlatform?: DatabasePlatform;
+  targetPlatform?: DatabasePlatform;
+  status?: MigrationStatus;
+  migrationId?: string;
+  isRejected?: boolean;
+  rejectedBy?: string;
+  rejectionReason?: string;
 }
 
 export interface ValidationResult {

@@ -45,11 +45,12 @@ public class AssessmentController : ControllerBase
                     Id = Guid.NewGuid(),
                     Server = request.Server ?? "",
                     Database = request.Database ?? "",
-                    Port = request.Port ?? 1433,
+                    Port = request.Port ?? Scaffold.Core.Models.ConnectionInfo.DefaultPortFor(request.Platform ?? DatabasePlatform.SqlServer),
                     UseSqlAuthentication = request.UseSqlAuthentication ?? false,
                     Username = request.Username,
                     TrustServerCertificate = request.TrustServerCertificate ?? false,
-                    Password = request.Password
+                    Password = request.Password,
+                    Platform = request.Platform ?? DatabasePlatform.SqlServer
                 };
                 project.SourceConnection = newConnection;
                 _dbContext.ConnectionInfos.Add(newConnection);
@@ -77,6 +78,8 @@ public class AssessmentController : ControllerBase
                     connectionInfo.Password = request.Password;
                 connectionInfo.TrustServerCertificate =
                     request.TrustServerCertificate ?? connectionInfo.TrustServerCertificate;
+                if (request.Platform.HasValue)
+                    connectionInfo.Platform = request.Platform.Value;
             }
 
             project.Status = ProjectStatus.Assessing;
@@ -229,6 +232,7 @@ public record AssessmentRequest(
     string? Username,
     string? Password,
     bool? TrustServerCertificate,
-    string? TargetService);
+    string? TargetService,
+    DatabasePlatform? Platform = null);
 
 public record EvaluateTargetRequest(string TargetService);

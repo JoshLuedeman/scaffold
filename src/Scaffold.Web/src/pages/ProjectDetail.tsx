@@ -18,7 +18,7 @@ import {
 } from '@fluentui/react-components';
 import type { SelectTabData, SelectTabEventHandler } from '@fluentui/react-components';
 import { api } from '../services/api';
-import type { MigrationProject, ProjectStatus } from '../types';
+import type { MigrationProject, ProjectStatus, MigrationResult } from '../types';
 import AssessmentReport from '../components/AssessmentReport';
 
 type Phase = 'assess' | 'plan' | 'execute';
@@ -32,6 +32,15 @@ const statusColor: Record<ProjectStatus, 'success' | 'warning' | 'danger' | 'inf
   Migrating: 'important',
   MigrationComplete: 'success',
   Failed: 'danger',
+};
+
+const migrationStatusColor: Record<string, 'success' | 'warning' | 'danger' | 'informative' | 'important'> = {
+  Pending: 'informative',
+  Scheduled: 'informative',
+  Running: 'important',
+  Completed: 'success',
+  Failed: 'danger',
+  Cancelled: 'warning',
 };
 
 const useStyles = makeStyles({
@@ -90,6 +99,7 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Phase>('assess');
+  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -106,6 +116,21 @@ export default function ProjectDetail() {
     };
     fetchProject();
   }, [id]);
+
+  // Fetch migration result for history summary
+  useEffect(() => {
+    if (!id) return;
+    const plan = project?.migrationPlan;
+    if (
+      plan?.migrationId &&
+      plan?.status &&
+      (plan.status === 'Completed' || plan.status === 'Failed' || plan.status === 'Running')
+    ) {
+      api.get<MigrationResult>(`/projects/${id}/migrations/${plan.migrationId}`)
+        .then(setMigrationResult)
+        .catch(() => {});
+    }
+  }, [id, project?.migrationPlan?.migrationId, project?.migrationPlan?.status]);
 
   const onTabSelect: SelectTabEventHandler = (_ev, data: SelectTabData) => {
     setActiveTab(data.value as Phase);
@@ -145,7 +170,7 @@ export default function ProjectDetail() {
       {/* Title + Status */}
       <div className={styles.header}>
         <Text size={700} weight="bold">{project.name}</Text>
-        <Badge appearance="filled" color={statusColor[project.status]}>{project.status}</Badge>
+        <Badge appearance="filled" color={statusColor[project.status]} aria-label={`Status: ${project.status}`}>{project.status}</Badge>
       </div>
 
       {project.description && (
@@ -249,13 +274,27 @@ export default function ProjectDetail() {
                         <Badge appearance="filled" color="success">
                           Approved{migrationPlan.approvedBy ? ` by ${migrationPlan.approvedBy}` : ''}
                         </Badge>
+                      ) : migrationPlan.isRejected ? (
+                        <>
+                          <Badge appearance="filled" color="danger">Rejected</Badge>
+                          {migrationPlan.rejectedBy && (
+                            <Text size={200} style={{ display: 'block', marginTop: tokens.spacingVerticalXS }}>
+                              by {migrationPlan.rejectedBy}
+                            </Text>
+                          )}
+                          {migrationPlan.rejectionReason && (
+                            <Text size={200} style={{ display: 'block', marginTop: tokens.spacingVerticalXS, fontStyle: 'italic' }}>
+                              {migrationPlan.rejectionReason}
+                            </Text>
+                          )}
+                        </>
                       ) : (
                         <Badge appearance="filled" color="warning">Pending Approval</Badge>
                       )}
                     </div>
                   </Card>
                 </div>
-                {!migrationPlan.isApproved && (
+                {(!migrationPlan.isApproved || migrationPlan.isRejected) && (
                   <Button
                     appearance="secondary"
                     as="a"
@@ -273,6 +312,43 @@ export default function ProjectDetail() {
         {/* ---- Execute Tab ---- */}
         {activeTab === 'execute' && (
           <>
+            {/* Migration history summary */}
+            {migrationPlan?.status && migrationPlan?.migrationId && (
+              <Card className={styles.ctaCard} style={{ marginBottom: tokens.spacingVerticalM }}>
+                <CardHeader header={<Text weight="semibold">Recent Migration</Text>} />
+                <div className={styles.ctaBody}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
+                    <Text size={200}>Status:</Text>
+                    <Badge
+                      appearance="filled"
+                      color={migrationStatusColor[migrationPlan.status] ?? 'informative'}
+                      aria-label={`Migration status: ${migrationPlan.status}`}
+                    >
+                      {migrationPlan.status}
+                    </Badge>
+                  </div>
+                  {migrationResult && (
+                    <>
+                      <Text size={200}>
+                        Started: {new Date(migrationResult.startedAt).toLocaleString()}
+                      </Text>
+                      {migrationResult.completedAt && (
+                        <Text size={200}>
+                          Completed: {new Date(migrationResult.completedAt).toLocaleString()}
+                        </Text>
+                      )}
+                      <Text size={200}>
+                        Rows migrated: {migrationResult.rowsMigrated.toLocaleString()}
+                      </Text>
+                    </>
+                  )}
+                  <Button appearance="secondary" as="a" href={`/projects/${id}/execute`}>
+                    View Details →
+                  </Button>
+                </div>
+              </Card>
+            )}
+
             {!migrationPlan?.isApproved ? (
               <Card className={styles.ctaCard}>
                 <div className={styles.ctaBody}>
