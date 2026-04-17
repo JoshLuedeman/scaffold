@@ -213,6 +213,7 @@ public class ValidationEngineTests
     [InlineData("dbo.Users", "[dbo].[Users]")]
     [InlineData("Sales.Orders", "[Sales].[Orders]")]
     [InlineData("[dbo].[Users]", "[dbo].[Users]")]
+    [InlineData("dbo.test]name", "[dbo].[test]]name]")]
     public void QuoteName_ViaSharedLogic_FormatsCorrectly(string input, string expected)
     {
         // QuoteName is private in ValidationEngine but identical to BulkDataCopier's.
