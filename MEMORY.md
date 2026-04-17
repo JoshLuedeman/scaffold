@@ -36,7 +36,7 @@ This file captures project learnings that persist across agent sessions.
 | `Scaffold.Assessment.Tests` | xUnit + Moq | Assessors, pricing, compatibility, tier recommender |
 | `Scaffold.Api.Tests` | xUnit + WebApplicationFactory + in-memory EF Core | Controllers, auth, scheduler, progress |
 | `Scaffold.Migration.Tests` | xUnit + Moq | Migrator, schema deployer, data copier, scripts |
-| `Scaffold.Integration.Tests` | xUnit + real SQL Server | End-to-end against live database (CI main-only) |
+| `Scaffold.Integration.Tests` | xUnit + real SQL Server + PostgreSQL | End-to-end against live databases (CI with service containers) |
 
 ## Key Technical Decisions
 
@@ -46,13 +46,13 @@ This file captures project learnings that persist across agent sessions.
 - **Auth**: Microsoft Entra ID (production) / `DevAuthHandler` with `DisableAuth=true` (development)
 - **Real-time**: SignalR `MigrationHub` broadcasts progress and persists to `MigrationProgressRecords`
 - **Background scheduler**: `MigrationSchedulerService` polls every 30s for approved plans
-- **Docker Compose**: SQL Server 2025 + API + Nginx (runtime DNS resolution with `resolver 127.0.0.11`)
+- **Docker Compose**: SQL Server 2025 + PostgreSQL 16 + API + Nginx (runtime DNS resolution with `resolver 127.0.0.11`)
 
 ## Build & Test Commands
 
 ```bash
 dotnet build                                        # Build entire solution
-dotnet test                                         # Run all 397+ tests
+dotnet test                                         # Run all 611+ tests
 dotnet test --filter "FullyQualifiedName~TestName"  # Single test
 dotnet run --project src/Scaffold.Api               # API on localhost:5062
 cd src/Scaffold.Web && npm install && npm run dev   # Frontend on localhost:5173
@@ -69,7 +69,7 @@ azd up                                              # Deploy to Azure
 |---|---|---|
 | **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Merged (PR #89, 17 issues) |
 | **Phase 0.5**: Infrastructure & DevOps Hardening | Observability, CD pipeline, security scanning, VNet, alerts | ✅ Merged (PR #90, 10 issues) |
-| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | 🔜 Next |
+| **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | ✅ Merged (PR #119, 15 issues) |
 | **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | Planned |
 | **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | Planned |
 | **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | Planned |
@@ -108,6 +108,20 @@ azd up                                              # Deploy to Azure
 - **Production SKUs**: SQL S1, Container App 0.5 CPU/1Gi, Standard ACR/SWA (~$85-105/mo).
 - **DB Migration Hook**: `postprovision.sh` runs `dotnet ef database update` during deployment.
 - **ESLint CI**: Frontend lint step enforced in CI pipeline.
+
+### Phase 1 Lessons Learned
+- **NpgsqlConnection is sealed**: Cannot be mocked with Moq. Unit tests focus on model/mapping logic; DB interaction tested via integration tests with real PostgreSQL.
+- **PostgreSQL partitioned table constraints**: Primary keys on partitioned tables must include all partition columns — `PRIMARY KEY (id, viewed_at)` not just `PRIMARY KEY (id)`.
+- **Port defaulting pattern**: `PostgreSqlConnectionFactory` checks if port == 1433 (SQL default) and substitutes 5432 for PostgreSQL connections.
+- **CI service containers**: PostgreSQL 16 added alongside SQL Server 2022 in the integration test job with health checks (`pg_isready`).
+- **6-wave sequential implementation**: Dependency-ordered waves (infra → analyzers → compatibility → pricing → orchestrator → integration tests) worked well for 15 issues.
+
+### Phase 1 Architecture Additions
+- **PostgreSQL Assessment Engine**: Full `IAssessmentEngine` implementation (`PostgreSqlAssessor`) with the same component pattern as SQL Server.
+- **Components**: `PostgreSqlConnectionFactory`, `SchemaAnalyzer` (9 PG catalog queries), `DataProfiler`, `PerformanceProfiler`, `CompatibilityMatrix` (37 features), `CompatibilityChecker` (9 async checks), `ExtensionDetector` (55 known extensions), `TierRecommender` (Burstable/GP/MO/VM).
+- **Azure PG Pricing**: `AzurePricingService` extended with `BuildFlexibleServerFilter()` and `BuildPostgreSqlVmFilter()` for Linux VM pricing.
+- **DI Registration**: `PostgreSqlConnectionFactory` (singleton) + `PostgreSqlAssessor` (scoped) registered in `Program.cs`. `AssessmentEngineFactory` maps `DatabasePlatform.PostgreSql` to the new assessor.
+- **Integration Tests**: 14 PostgreSQL integration tests with `PostgreSqlFixture` (IAsyncLifetime) seeding from `postgres-seed.sql`.
 
 ## Known Pitfalls
 
