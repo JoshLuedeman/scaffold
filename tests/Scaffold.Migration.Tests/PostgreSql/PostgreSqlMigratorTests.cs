@@ -167,29 +167,40 @@ public class PostgreSqlMigratorTests
 
     #endregion
 
-    #region StartContinuousSyncAsync — not supported
+    #region StartContinuousSyncAsync — validates connection strings
 
     [Fact]
-    public async Task StartContinuousSyncAsync_ThrowsNotSupportedException()
+    public async Task StartContinuousSyncAsync_MissingSourceConnectionString_ThrowsArgumentException()
     {
         var migrator = CreateMigrator();
         var plan = CreateValidPlan();
+        plan.SourceConnectionString = null;
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(
+        await Assert.ThrowsAsync<ArgumentException>(
             () => migrator.StartContinuousSyncAsync(plan));
-        Assert.Contains("logical replication", ex.Message);
+    }
+
+    [Fact]
+    public async Task StartContinuousSyncAsync_MissingTargetConnectionString_ThrowsArgumentException()
+    {
+        var migrator = CreateMigrator();
+        var plan = CreateValidPlan();
+        plan.ExistingTargetConnectionString = null;
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => migrator.StartContinuousSyncAsync(plan));
     }
 
     #endregion
 
-    #region CompleteCutoverAsync — not supported
+    #region CompleteCutoverAsync — requires active sync
 
     [Fact]
-    public async Task CompleteCutoverAsync_ThrowsNotSupportedException()
+    public async Task CompleteCutoverAsync_WithoutStartingSync_ThrowsInvalidOperationException()
     {
         var migrator = CreateMigrator();
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => migrator.CompleteCutoverAsync(Guid.NewGuid()));
         Assert.Contains("StartContinuousSyncAsync", ex.Message);
     }

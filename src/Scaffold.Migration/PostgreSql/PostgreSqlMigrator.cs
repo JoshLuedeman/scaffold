@@ -28,6 +28,11 @@ public class PostgreSqlMigrator : IMigrationEngine
     private readonly PostgreSqlToPostgreSqlValidationEngine _validationEngine;
     private readonly AzureExtensionHandler _extensionHandler;
 
+    private LogicalReplicationSyncEngine? _syncEngine;
+    private string? _sourceConnectionString;
+    private string? _targetConnectionString;
+    private MigrationPlan? _activePlan;
+
     public PostgreSqlMigrator(
         PostgreSqlSchemaExtractor schemaExtractor,
         PostgreSqlDdlGenerator ddlGenerator,
@@ -221,22 +226,165 @@ public class PostgreSqlMigrator : IMigrationEngine
     }
 
     /// <summary>
-    /// ContinuousSync for PG→PG will use logical replication (Wave 4, Issue #34).
-    /// Not yet implemented.
+    /// Starts continuous sync for PG→PG using logical replication (pgoutput protocol).
+    /// Extracts schema, deploys DDL, installs extensions, then starts replication.
     /// </summary>
-    public Task StartContinuousSyncAsync(
+    public async Task StartContinuousSyncAsync(
         MigrationPlan plan,
         IProgress<MigrationProgress>? progress = null,
         CancellationToken ct = default)
     {
-        throw new NotSupportedException(
-            "Continuous sync for PostgreSQL → PostgreSQL is not yet implemented. It will use logical replication (Issue #34).");
+        ValidateConnectionStrings(plan);
+
+        _sourceConnectionString = plan.SourceConnectionString!;
+        _targetConnectionString = plan.ExistingTargetConnectionString!;
+        _activePlan = plan;
+
+        // Step 1: Extract schema from source PG
+        progress?.Report(new MigrationProgress
+        {
+            Phase = "SchemaExtraction",
+            PercentComplete = 0,
+            Message = "Extracting schema from source PostgreSQL..."
+        });
+
+        var snapshot = await _schemaExtractor.ExtractSchemaAsync(
+            _sourceConnectionString,
+            plan.IncludedObjects.Count > 0 ? plan.IncludedObjects : null,
+            progress,
+            ct);
+
+        // Step 2: Handle extensions
+        progress?.Report(new MigrationProgress
+        {
+            Phase = "Extensions",
+            PercentComplete = 5,
+            Message = "Evaluating and installing PostgreSQL extensions..."
+        });
+
+        var extResult = await _extensionHandler.InstallExtensionsAsync(
+            _targetConnectionString,
+            snapshot.Extensions,
+            progress,
+            ct);
+
+        if (!extResult.Success)
+        {
+            throw new InvalidOperationException(
+                "Extension installation failed: " +
+                string.Join("; ", extResult.Warnings
+                    .Where(w => w.Severity == ExtensionWarningSeverity.Error)
+                    .Select(w => w.Message)));
+        }
+
+        // Step 3: Deploy DDL on target
+        progress?.Report(new MigrationProgress
+        {
+            Phase = "SchemaDeployment",
+            PercentComplete = 10,
+            Message = "Deploying schema to target PostgreSQL..."
+        });
+
+        var ddlStatements = _ddlGenerator.GenerateDdl(snapshot);
+
+        if (ddlStatements.Count > 0)
+        {
+            await using var targetConn = new NpgsqlConnection(_targetConnectionString);
+            await targetConn.OpenAsync(ct);
+            foreach (var ddl in ddlStatements)
+            {
+                ct.ThrowIfCancellationRequested();
+                await using var cmd = new NpgsqlCommand(ddl, targetConn);
+                cmd.CommandTimeout = plan.ScriptTimeoutSeconds > 0 ? plan.ScriptTimeoutSeconds.Value : 300;
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        // Step 4: Execute pre-migration scripts
+        if (plan.PreMigrationScripts.Count > 0)
+        {
+            progress?.Report(new MigrationProgress
+            {
+                Phase = "PreScripts",
+                PercentComplete = 15,
+                Message = "Running pre-migration scripts on target..."
+            });
+            await _scriptExecutor.ExecuteScriptsAsync(
+                _targetConnectionString,
+                plan.PreMigrationScripts,
+                progress, ct, plan.ScriptTimeoutSeconds);
+        }
+
+        // Step 5: Start logical replication sync engine
+        progress?.Report(new MigrationProgress
+        {
+            Phase = "ContinuousSync",
+            PercentComplete = 20,
+            Message = "Starting logical replication sync..."
+        });
+
+        var tableNames = snapshot.Tables.Select(t =>
+            $"{PgIdentifierHelper.MapSchema(t.Schema)}.{t.TableName}").ToList();
+
+        _syncEngine = new LogicalReplicationSyncEngine(_bulkCopier, progress);
+        await _syncEngine.StartAsync(
+            _sourceConnectionString,
+            _targetConnectionString,
+            tableNames,
+            plan.MigrationId ?? plan.Id,
+            ct);
+
+        progress?.Report(new MigrationProgress
+        {
+            Phase = "ContinuousSync",
+            PercentComplete = 50,
+            Message = "Logical replication streaming active. Ready for cutover."
+        });
     }
 
-    public Task<MigrationResult> CompleteCutoverAsync(Guid migrationId, CancellationToken ct = default)
+    /// <summary>
+    /// Completes cutover by stopping replication, running post-scripts, and validating.
+    /// </summary>
+    public async Task<MigrationResult> CompleteCutoverAsync(Guid migrationId, CancellationToken ct = default)
     {
-        throw new NotSupportedException(
-            "CompleteCutover for PostgreSQL requires an active continuous sync session. Start with StartContinuousSyncAsync first.");
+        if (_syncEngine is null)
+        {
+            throw new InvalidOperationException(
+                "Cannot complete cutover before starting continuous sync. Call StartContinuousSyncAsync first.");
+        }
+
+        var result = await _syncEngine.CompleteCutoverAsync(
+            _activePlan?.ProjectId ?? Guid.Empty, ct);
+
+        // Run post-migration scripts if configured
+        if (_activePlan?.PostMigrationScripts.Count > 0)
+        {
+            await _scriptExecutor.ExecuteScriptsAsync(
+                _targetConnectionString!,
+                _activePlan.PostMigrationScripts,
+                null, ct, _activePlan.ScriptTimeoutSeconds);
+        }
+
+        // Run validation
+        if (_activePlan is not null)
+        {
+            var snapshot = await _schemaExtractor.ExtractSchemaAsync(
+                _sourceConnectionString!, ct: ct);
+            var tableNames = snapshot.Tables.Select(t =>
+                $"{PgIdentifierHelper.MapSchema(t.Schema)}.{t.TableName}").ToList();
+
+            var validationSummary = await _validationEngine.ValidateAsync(
+                _sourceConnectionString!,
+                _targetConnectionString!,
+                tableNames,
+                ct);
+
+            result.Validations = validationSummary.Results;
+            result.Success = validationSummary.AllPassed;
+        }
+
+        result.CompletedAt = DateTime.UtcNow;
+        return result;
     }
 
     private static void ValidateConnectionStrings(MigrationPlan plan)
