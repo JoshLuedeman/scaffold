@@ -62,7 +62,8 @@ public class DdlTranslator
         {
             if (col.IsComputed)
             {
-                columnDefs.Add($"    -- COMPUTED COLUMN: {QuoteIdentifier(col.Name)} = {col.ComputedExpression ?? "unknown"} (requires manual translation)");
+                var sanitizedExpr = (col.ComputedExpression ?? "unknown").Replace("\r", " ").Replace("\n", " ");
+                columnDefs.Add($"    -- COMPUTED COLUMN: {QuoteIdentifier(col.Name)} = {sanitizedExpr} (requires manual translation)");
                 continue;
             }
 
@@ -153,7 +154,7 @@ public class DdlTranslator
         sb.Append($"ALTER TABLE {QuoteIdentifier(pgSchema)}.{QuoteIdentifier(table.TableName)} ");
         sb.AppendLine($"ADD CONSTRAINT {QuoteIdentifier(fk.Name)}");
         sb.Append($"    FOREIGN KEY ({fkCols}) REFERENCES {QuoteIdentifier(pgRefSchema)}.{QuoteIdentifier(fk.ReferencedTable)} ({refCols})");
-        sb.Append($" ON DELETE {fk.DeleteAction} ON UPDATE {fk.UpdateAction};");
+        sb.Append($" ON DELETE {ValidateReferentialAction(fk.DeleteAction)} ON UPDATE {ValidateReferentialAction(fk.UpdateAction)};");
 
         return sb.ToString();
     }
@@ -198,6 +199,18 @@ public class DdlTranslator
     /// Wraps an identifier in PostgreSQL double-quotes.
     /// </summary>
     public static string QuoteIdentifier(string name) => $"\"{name.Replace("\"", "\"\"")}\"";
+
+    private static readonly HashSet<string> ValidReferentialActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "NO ACTION", "CASCADE", "SET NULL", "SET DEFAULT", "RESTRICT"
+    };
+
+    private static string ValidateReferentialAction(string action)
+    {
+        if (ValidReferentialActions.Contains(action))
+            return action.ToUpperInvariant();
+        return "NO ACTION"; // safe default
+    }
 
 
     /// <summary>

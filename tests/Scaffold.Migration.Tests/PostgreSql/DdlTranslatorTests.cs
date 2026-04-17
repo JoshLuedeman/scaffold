@@ -711,4 +711,80 @@ public class DdlTranslatorTests
     }
 
     #endregion
+
+    #region Security — Computed Column Comment Sanitization
+
+    [Fact]
+    public void GenerateCreateTable_ComputedColumnWithNewlines_SanitizesExpression()
+    {
+        var table = new TableDefinition
+        {
+            Schema = "dbo",
+            TableName = "Test",
+            Columns =
+            [
+                new ColumnDefinition { Name = "Id", DataType = "int", IsNullable = false, OrdinalPosition = 1 },
+                new ColumnDefinition
+                {
+                    Name = "Total", DataType = "decimal", IsComputed = true,
+                    ComputedExpression = "[Price]*[Qty]\r\n-- DROP TABLE",
+                    OrdinalPosition = 2
+                }
+            ]
+        };
+
+        var result = _translator.GenerateCreateTable(table);
+
+        // The injected newline should not cause a line break inside the comment
+        Assert.DoesNotContain("\n-- DROP TABLE", result);
+        // The sanitized expression should appear as a single-line comment
+        Assert.Contains("-- COMPUTED COLUMN: \"Total\" = [Price]*[Qty]  -- DROP TABLE (requires manual translation)", result);
+    }
+
+    #endregion
+
+    #region Security — FK Referential Action Whitelist
+
+    [Theory]
+    [InlineData("CASCADE", "CASCADE")]
+    [InlineData("NO ACTION", "NO ACTION")]
+    [InlineData("SET NULL", "SET NULL")]
+    [InlineData("SET DEFAULT", "SET DEFAULT")]
+    [InlineData("RESTRICT", "RESTRICT")]
+    [InlineData("cascade", "CASCADE")]
+    [InlineData("; DROP TABLE users; --", "NO ACTION")]
+    [InlineData("INVALID", "NO ACTION")]
+    public void GenerateAddForeignKey_ValidatesReferentialActions(string inputAction, string expectedAction)
+    {
+        var table = new TableDefinition
+        {
+            Schema = "dbo",
+            TableName = "Orders",
+            Columns =
+            [
+                new ColumnDefinition { Name = "Id", DataType = "int", IsNullable = false, OrdinalPosition = 1 },
+                new ColumnDefinition { Name = "UserId", DataType = "int", IsNullable = false, OrdinalPosition = 2 }
+            ],
+            ForeignKeys =
+            [
+                new ForeignKeyDefinition
+                {
+                    Name = "FK_Orders_Users",
+                    ReferencedSchema = "dbo",
+                    ReferencedTable = "Users",
+                    Columns = ["UserId"],
+                    ReferencedColumns = ["Id"],
+                    DeleteAction = inputAction,
+                    UpdateAction = inputAction
+                }
+            ]
+        };
+
+        var result = _translator.GenerateAddForeignKey(table, table.ForeignKeys[0]);
+
+        Assert.Contains($"ON DELETE {expectedAction}", result);
+        Assert.Contains($"ON UPDATE {expectedAction}", result);
+    }
+
+    #endregion
 }
