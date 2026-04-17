@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Scaffold.Assessment\Scaffold.Assessment.csproj" />
+    <ProjectReference Include="..\..\src\Scaffold.Migration\Scaffold.Migration.csproj" />
   </ItemGroup>
 
   <ItemGroup>
