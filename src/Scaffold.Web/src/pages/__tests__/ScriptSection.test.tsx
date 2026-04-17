@@ -119,7 +119,7 @@ describe('ScriptSection', () => {
         />
       </TestWrapper>,
     );
-    const editBtn = screen.getByTitle('Edit script');
+    const editBtn = screen.getByRole('button', { name: 'Edit My Custom Script' });
     expect(editBtn).toBeInTheDocument();
   });
 
@@ -139,7 +139,7 @@ describe('ScriptSection', () => {
         />
       </TestWrapper>,
     );
-    const editBtn = screen.getByTitle('Edit script');
+    const editBtn = screen.getByRole('button', { name: 'Edit My Custom Script' });
     fireEvent.click(editBtn);
 
     expect(screen.getByText('Edit Custom Script')).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe('ScriptSection', () => {
         />
       </TestWrapper>,
     );
-    const editBtn = screen.getByTitle('Edit script');
+    const editBtn = screen.getByRole('button', { name: 'Edit My Custom Script' });
     fireEvent.click(editBtn);
 
     const saveBtn = screen.getByRole('button', { name: 'Save Changes' });

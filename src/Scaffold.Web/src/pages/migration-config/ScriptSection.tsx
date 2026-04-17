@@ -19,7 +19,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { AddRegular, EditRegular, EyeRegular } from '@fluentui/react-icons';
+import { AddRegular, ArrowUpRegular, ArrowDownRegular, EditRegular, EyeRegular } from '@fluentui/react-icons';
 import type { MigrationScript } from '../../types';
 import type { CannedScriptInfo } from './types';
 
@@ -199,6 +199,16 @@ export function ScriptSection({
     setDragOverIndex(null);
   }
 
+  function moveItem(index: number, direction: 'up' | 'down') {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= orderedItems.length) return;
+    const currentIds = orderedItems.map(item => item.id);
+    const newIds = [...currentIds];
+    const [moved] = newIds.splice(index, 1);
+    newIds.splice(targetIndex, 0, moved);
+    setLocalOrder(newIds);
+  }
+
   function openEditDialog(script: MigrationScript) {
     setEditScriptId(script.scriptId);
     setEditLabel(script.label);
@@ -237,6 +247,22 @@ export function ScriptSection({
           >
             <span className={styles.orderNumber} data-testid={`order-${item.id}`}>{index + 1}</span>
             <span className={styles.dragHandle} aria-hidden="true">{'\u28FF'}</span>
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<ArrowUpRegular />}
+              aria-label={`Move ${item.label} up`}
+              disabled={index === 0}
+              onClick={() => moveItem(index, 'up')}
+            />
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<ArrowDownRegular />}
+              aria-label={`Move ${item.label} down`}
+              disabled={index === orderedItems.length - 1}
+              onClick={() => moveItem(index, 'down')}
+            />
             {item.type === 'canned' ? (
               <>
                 <Checkbox
@@ -249,7 +275,7 @@ export function ScriptSection({
                   size="small"
                   icon={<EyeRegular />}
                   onClick={() => onPreviewScript(item.id)}
-                  title="Preview SQL"
+                  aria-label={`Preview ${item.label}`}
                 />
               </>
             ) : (
@@ -262,14 +288,14 @@ export function ScriptSection({
                     size="small"
                     icon={<EditRegular />}
                     onClick={() => openEditDialog(item.script!)}
-                    title="Edit script"
+                    aria-label={`Edit ${item.label}`}
                   />
                 )}
                 <Button
                   appearance="subtle"
                   size="small"
                   onClick={() => onRemoveCustomScript(item.id)}
-                  title="Remove script"
+                  aria-label={`Remove ${item.label}`}
                 >
                   {'\u2715'}
                 </Button>

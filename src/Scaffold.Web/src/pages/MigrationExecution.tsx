@@ -385,6 +385,7 @@ export default function MigrationExecution() {
             appearance="filled"
             color={connectionBadgeColor[connectionStatus] ?? 'informative'}
             size="small"
+            aria-label={`Connection: ${connectionStatus}`}
           />
           <Text size={200}>{connectionStatus}</Text>
         </div>
@@ -396,6 +397,7 @@ export default function MigrationExecution() {
           <Badge
             appearance="filled"
             color={statusBadgeColor[effectiveMigrationStatus] ?? 'informative'}
+            aria-label={`Migration status: ${effectiveMigrationStatus}`}
           >
             {effectiveMigrationStatus}
           </Badge>
@@ -407,7 +409,14 @@ export default function MigrationExecution() {
         <Card className={styles.card}>
           <Text weight="semibold" size={400}>Progress</Text>
           <Text weight="semibold" size={200}>{getPhaseLabel(effectiveProgress.phase, sourcePlatform)}</Text>
-          <ProgressBar value={effectiveProgress.percentComplete / 100} />
+          <ProgressBar
+            value={effectiveProgress.percentComplete / 100}
+            role="progressbar"
+            aria-valuenow={effectiveProgress.percentComplete}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Migration progress: ${effectiveProgress.percentComplete}%`}
+          />
           <div className={styles.progressMeta}>
             <span>{effectiveProgress.percentComplete}%</span>
             <span>Table: {effectiveProgress.currentTable || '—'}</span>
@@ -421,6 +430,7 @@ export default function MigrationExecution() {
                 appearance="filled"
                 color={effectiveProgress.replicationLagBytes < 1024 * 1024 ? 'success' : effectiveProgress.replicationLagBytes < 10 * 1024 * 1024 ? 'warning' : 'danger'}
                 size="small"
+                aria-label={`Replication lag: ${formatLagBytes(effectiveProgress.replicationLagBytes)}${effectiveProgress.replicationLagBytes < 1024 * 1024 ? ' (healthy)' : effectiveProgress.replicationLagBytes < 10 * 1024 * 1024 ? ' (elevated)' : ' (high)'}`}
               >
                 {formatLagBytes(effectiveProgress.replicationLagBytes)}
               </Badge>
@@ -488,7 +498,7 @@ export default function MigrationExecution() {
       {migrationId && (
         <Card className={styles.card}>
           <Text weight="semibold" size={400}>Log</Text>
-          <div className={styles.logContainer}>
+          <div className={styles.logContainer} role="log" aria-live="polite" aria-label="Migration log">
             {log.map((entry, i) => (
               <div key={i} className={styles.logEntry}>
                 <span className={styles.logTime}>
@@ -545,13 +555,14 @@ export default function MigrationExecution() {
                   <TableCell>{v.targetRowCount.toLocaleString()}</TableCell>
                   <TableCell>
                     {v.checksumMatch
-                      ? <CheckmarkCircleRegular style={{ color: tokens.colorPaletteGreenForeground1 }} />
-                      : <DismissCircleRegular style={{ color: tokens.colorPaletteRedForeground1 }} />}
+                      ? <CheckmarkCircleRegular aria-label="Checksum match" style={{ color: tokens.colorPaletteGreenForeground1 }} />
+                      : <DismissCircleRegular aria-label="Checksum mismatch" style={{ color: tokens.colorPaletteRedForeground1 }} />}
                   </TableCell>
                   <TableCell>
                     <Badge
                       appearance="filled"
                       color={v.passed ? 'success' : 'danger'}
+                      aria-label={`Validation: ${v.passed ? 'Passed' : 'Failed'}`}
                     >
                       {v.passed ? 'Pass' : 'Fail'}
                     </Badge>

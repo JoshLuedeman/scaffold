@@ -307,7 +307,7 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
         <MetricCard
           icon={<ArrowTrendingRegular />}
           label="Risk"
-          value={<Badge appearance="filled" color={riskColor[risk]}>{risk}</Badge>}
+          value={<Badge appearance="filled" color={riskColor[risk]} aria-label={`Risk: ${risk}`}>{risk}</Badge>}
         />
       </div>
 
@@ -417,6 +417,15 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
                 key={s.service}
                 className={selectedService === s.service ? styles.serviceRowSelected : styles.serviceRow}
                 onClick={() => setSelectedService(selectedService === s.service ? null : s.service)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedService(selectedService === s.service ? null : s.service);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-pressed={selectedService === s.service}
               >
                 <TableCell>
                   <Text weight={selectedService === s.service ? 'bold' : 'regular'}>
@@ -430,7 +439,7 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
                   <Text weight="semibold">{s.compatibilityScore}%</Text>
                 </TableCell>
                 <TableCell>
-                  <Badge appearance="filled" color={riskColor[s.risk]}>{s.risk}</Badge>
+                  <Badge appearance="filled" color={riskColor[s.risk]} aria-label={`Risk: ${s.risk}`}>{s.risk}</Badge>
                 </TableCell>
                 <TableCell>
                   {s.unsupportedCount > 0 ? (
@@ -612,17 +621,26 @@ function IssueRow({
         key={`row-${index}`}
         className={styles.issueExpandRow}
         onClick={onToggle}
+        onKeyDown={(e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        tabIndex={0}
         aria-expanded={expanded}
         data-testid={`issue-row-${index}`}
       >
         <TableCell>
-          {expanded ? <ChevronDownRegular /> : <ChevronRightRegular />}
+          {expanded
+            ? <ChevronDownRegular aria-hidden="true" />
+            : <ChevronRightRegular aria-hidden="true" />}
         </TableCell>
         <TableCell>{issue.objectName}</TableCell>
         <TableCell>{issue.issueType}</TableCell>
         <TableCell>{issue.description}</TableCell>
         <TableCell>
-          <Badge appearance="filled" color={severityColor[issue.severity]}>
+          <Badge appearance="filled" color={severityColor[issue.severity]} aria-label={`Severity: ${severityLabel[issue.severity]}`}>
             {severityLabel[issue.severity]}
           </Badge>
         </TableCell>
@@ -637,7 +655,7 @@ function IssueRow({
               </div>
               <div>
                 <Text size={200} weight="semibold" block>Impact</Text>
-                <Badge appearance="filled" color={issue.isBlocking ? 'danger' : 'warning'}>
+                <Badge appearance="filled" color={issue.isBlocking ? 'danger' : 'warning'} aria-label={`Impact: ${issue.isBlocking ? 'Blocking' : 'Non-blocking'}`}>
                   {issue.isBlocking ? 'Blocking' : 'Non-blocking'}
                 </Badge>
               </div>

@@ -371,7 +371,21 @@ export default function ProjectList() {
       ) : (
         <div className={styles.grid}>
           {filteredProjects.map((p) => (
-            <Card key={p.id} className={styles.card} as="div" onClick={() => navigate(`/projects/${p.id}`)}>
+            <Card
+              key={p.id}
+              className={styles.card}
+              as="div"
+              role="button"
+              tabIndex={0}
+              aria-label={`Project ${p.name}, status ${p.status}`}
+              onClick={() => navigate(`/projects/${p.id}`)}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(`/projects/${p.id}`);
+                }
+              }}
+            >
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
                   <Text weight="semibold" size={400}>{p.name}</Text>
@@ -381,7 +395,7 @@ export default function ProjectList() {
                     </Text>
                   )}
                 </div>
-                <Badge appearance="filled" color={statusColor[p.status]}>
+                <Badge appearance="filled" color={statusColor[p.status]} aria-label={`Status: ${p.status}`}>
                   {p.status}
                 </Badge>
               </div>
@@ -442,12 +456,14 @@ export default function ProjectList() {
                 value={newName}
                 onChange={(_, data) => setNewName(data.value)}
                 required
+                aria-label="Project name"
               />
               <Textarea
                 placeholder="Description (optional)"
                 value={newDesc}
                 onChange={(_, data) => setNewDesc(data.value)}
                 resize="vertical"
+                aria-label="Project description"
               />
             </div>
           </DialogBody>

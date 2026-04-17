@@ -26,6 +26,28 @@ function useAuth() {
 }
 
 const useStyles = makeStyles({
+  skipNav: {
+    position: 'absolute',
+    left: '-9999px',
+    top: 'auto',
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    ':focus': {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: 'auto',
+      height: 'auto',
+      padding: tokens.spacingVerticalS + ' ' + tokens.spacingHorizontalM,
+      backgroundColor: tokens.colorBrandBackground,
+      color: tokens.colorNeutralForegroundOnBrand,
+      zIndex: 1000,
+      fontSize: tokens.fontSizeBase300,
+      fontWeight: tokens.fontWeightSemibold,
+      textDecorationLine: 'none',
+    },
+  },
   layout: {
     display: 'flex',
     flexDirection: 'column',
@@ -110,6 +132,9 @@ export default function Layout() {
 
   return (
     <div className={styles.layout}>
+      <a href="#main-content" className={styles.skipNav}>
+        Skip to main content
+      </a>
       <header className={styles.header}>
         <Text className={styles.headerTitle}>Scaffold</Text>
         <div className={styles.headerActions}>
@@ -156,7 +181,7 @@ export default function Layout() {
           </ul>
           <Divider />
         </nav>
-        <main className={styles.content}>
+        <main id="main-content" className={styles.content}>
           <Outlet />
         </main>
       </div>

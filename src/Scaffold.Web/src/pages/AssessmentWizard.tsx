@@ -263,11 +263,11 @@ export default function AssessmentWizard() {
         <Text as="h2" size={700} weight="semibold">Assessment Wizard</Text>
       </div>
 
-      <div className={styles.stepper}>
+      <div className={styles.stepper} role="list" aria-label="Assessment wizard steps">
         {STEPS.map((s, i) => (
-          <div key={s.key} className={styles.stepItem}>
-            {i > 0 && <span className={styles.stepDivider} />}
-            <span className={stepCircleClass(i)}>{i + 1}</span>
+          <div key={s.key} className={styles.stepItem} role="listitem" aria-current={i === stepIndex ? 'step' : undefined}>
+            {i > 0 && <span className={styles.stepDivider} aria-hidden="true" />}
+            <span className={stepCircleClass(i)} aria-hidden="true">{i + 1}</span>
             <Text className={stepLabelClass(i)}>{s.label}</Text>
           </div>
         ))}

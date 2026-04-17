@@ -170,7 +170,7 @@ export default function ProjectDetail() {
       {/* Title + Status */}
       <div className={styles.header}>
         <Text size={700} weight="bold">{project.name}</Text>
-        <Badge appearance="filled" color={statusColor[project.status]}>{project.status}</Badge>
+        <Badge appearance="filled" color={statusColor[project.status]} aria-label={`Status: ${project.status}`}>{project.status}</Badge>
       </div>
 
       {project.description && (
@@ -322,6 +322,7 @@ export default function ProjectDetail() {
                     <Badge
                       appearance="filled"
                       color={migrationStatusColor[migrationPlan.status] ?? 'informative'}
+                      aria-label={`Migration status: ${migrationPlan.status}`}
                     >
                       {migrationPlan.status}
                     </Badge>
