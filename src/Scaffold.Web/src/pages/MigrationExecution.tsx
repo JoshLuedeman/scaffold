@@ -29,7 +29,7 @@ import {
 } from '@fluentui/react-icons';
 import { api } from '../services/api';
 import { useMigrationProgress } from '../hooks/useMigrationProgress';
-import type { MigrationProject, MigrationResult, ValidationResult } from '../types';
+import type { MigrationProject, MigrationResult, ValidationResult, DatabasePlatform } from '../types';
 
 function useSafeMsal(): PublicClientApplication | null {
   const { instance, accounts } = useMsal();
@@ -37,6 +37,29 @@ function useSafeMsal(): PublicClientApplication | null {
     return null;
   }
   return instance as PublicClientApplication;
+}
+
+/** Map generic phase strings to PostgreSQL-friendly labels. */
+const PG_PHASE_LABELS: Record<string, string> = {
+  SchemaDeployment: 'Deploying schema',
+  DataCopy: 'Copying data (COPY protocol)',
+  LogicalReplication: 'Streaming WAL changes',
+  InitialSync: 'Initial data sync',
+  Validation: 'Validating data integrity',
+  Cutover: 'Performing cutover',
+};
+
+function getPhaseLabel(phase: string, platform?: DatabasePlatform): string {
+  if (platform === 'PostgreSql') {
+    return PG_PHASE_LABELS[phase] ?? phase;
+  }
+  return phase;
+}
+
+function formatLagBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const useStyles = makeStyles({
@@ -64,6 +87,14 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalXL,
     marginTop: tokens.spacingVerticalS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  replicationLag: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+    marginTop: tokens.spacingVerticalXS,
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
   },
@@ -128,6 +159,8 @@ export default function MigrationExecution() {
   const styles = useStyles();
 
   const strategy: MigrationStrategy | undefined = project?.migrationPlan?.strategy;
+  const sourcePlatform: DatabasePlatform | undefined =
+    project?.migrationPlan?.sourcePlatform ?? project?.sourceConnection?.platform;
 
   useEffect(() => {
     api
@@ -191,6 +224,10 @@ export default function MigrationExecution() {
       setValidating(false);
     }
   }
+
+  const cutoverMessage = sourcePlatform === 'PostgreSql'
+    ? 'This will stop logical replication and finalize'
+    : 'This will stop change tracking and finalize';
 
   if (loading) return <p>Loading…</p>;
   if (error && !migrationId) {
@@ -262,19 +299,35 @@ export default function MigrationExecution() {
       {progress && (
         <Card className={styles.card}>
           <Text weight="semibold" size={400}>Progress</Text>
-          <Text weight="semibold" size={200}>{progress.phase}</Text>
+          <Text weight="semibold" size={200}>{getPhaseLabel(progress.phase, sourcePlatform)}</Text>
           <ProgressBar value={progress.percentComplete / 100} />
           <div className={styles.progressMeta}>
             <span>{progress.percentComplete}%</span>
             <span>Table: {progress.currentTable || '—'}</span>
             <span>Rows: {progress.rowsProcessed.toLocaleString()}</span>
           </div>
+          {/* Replication lag indicator for ContinuousSync PG migrations */}
+          {sourcePlatform === 'PostgreSql' && strategy === 'ContinuousSync' && progress.replicationLagBytes != null && (
+            <div className={styles.replicationLag}>
+              <Text size={200} weight="semibold">Replication lag:</Text>
+              <Badge
+                appearance="filled"
+                color={progress.replicationLagBytes < 1024 * 1024 ? 'success' : progress.replicationLagBytes < 10 * 1024 * 1024 ? 'warning' : 'danger'}
+                size="small"
+              >
+                {formatLagBytes(progress.replicationLagBytes)}
+              </Badge>
+            </div>
+          )}
         </Card>
       )}
 
       {/* Cutover button for continuous sync */}
       {strategy === 'ContinuousSync' && migrationStatus === 'running' && (
         <Card className={styles.card}>
+          <Text size={200} style={{ color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalS, display: 'block' }}>
+            {cutoverMessage}
+          </Text>
           <Button
             appearance="primary"
             onClick={triggerCutover}

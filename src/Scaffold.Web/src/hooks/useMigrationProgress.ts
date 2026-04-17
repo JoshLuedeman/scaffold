@@ -14,6 +14,7 @@ export interface MigrationProgress {
   currentTable: string;
   rowsProcessed: number;
   message: string;
+  replicationLagBytes?: number;
 }
 
 export interface LogEntry {
