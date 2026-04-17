@@ -72,7 +72,7 @@ azd up                                              # Deploy to Azure
 | **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | ✅ Merged (PR #119, 15 issues) |
 | **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | ✅ Merged (PR #120, 8 issues) |
 | **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | ✅ Merged (PR #121, 8 issues) |
-| **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | Planned |
+| **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | ✅ Merged (PR #127, 20 issues) |
 | **Phase 5**: Documentation & Release Prep | ADR, README, API docs, Docker Compose PG, MEMORY.md | Planned |
 
 ### Phase 0 Lessons Learned
@@ -165,6 +165,27 @@ azd up                                              # Deploy to Azure
 - **Cancellation Service**: `MigrationCancellationService` singleton with `ConcurrentDictionary<Guid, CTS>` for migration cancellation via API endpoint.
 - **Validation Engine**: `PostgreSqlToPostgreSqlValidationEngine` for PG→PG row count validation.
 - **Test Coverage**: 755 migration tests, 24 integration tests (PG container required).
+
+### Phase 4 Lessons Learned
+- **MigrationConfig decomposition**: Split 1017-line monolith into 8 subcomponents in `pages/migration-config/` with orchestrator pattern. Keep original file as re-export for backward compatibility.
+- **Error boundary must be class component**: React 19 still has no hook equivalent for `componentDidCatch`. ErrorBoundary.tsx wraps Fluent UI styling.
+- **HTTP 204 No Content handling**: `fetch().json()` crashes on empty bodies. Always guard with `response.status === 204` check before calling `.json()`.
+- **API retry logic**: Exponential backoff 1s/2s/4s, max 3 retries, only on 5xx + network errors, never retry 4xx.
+- **State recovery pattern**: On component mount, check persisted status (e.g., `project.migrationPlan?.status`) to restore UI state for Running/Completed/Failed/Cancelled migrations.
+- **HTML5 drag-and-drop**: Native drag API only (no external libs) with keyboard move up/down buttons as accessibility fallback.
+- **Security false positives**: `[NotMapped]` properties are never persisted — security auditors may flag transient in-memory fields as stored credentials. Verify with EF Core schema.
+- **Follow-up issue #128**: Redact credentials from `ExistingTargetConnectionString` in MigrationPlan API responses (defense-in-depth, not blocking).
+
+### Phase 4 Architecture Additions
+- **Multi-platform API**: `AssessmentRequest.Platform` parameter, `PricingController` platform query param. Backend defaults to SqlServer when Platform is null for backward compatibility.
+- **Platform-aware TypeScript types**: `DatabasePlatform`, `MigrationStatus`, `PaginatedResult<T>`, `StrategyRecommendation` in `types/index.ts`.
+- **MigrationConfig subcomponents**: `StrategySection`, `ObjectSelectionSection`, `TargetTierSection`, `TargetConnectionSection`, `RegionPricingSection`, `ScriptSection`, `ReviewApproveSection` + shared `types.ts`.
+- **Error handling**: `ApiError` class with retry logic, `ErrorBoundary` component at app + page level.
+- **ProjectList enhancements**: Debounced search, status filter, sort controls, pagination, fixed PaginatedResult contract.
+- **Workflow UI**: Plan approval/rejection with dialog, compatibility drill-down with group-by, strategy recommendation display.
+- **Migration execution**: Cancel button with confirmation, state recovery on mount, migration history card, PG progress phases, replication lag indicator.
+- **Accessibility**: Skip-nav, ARIA roles/labels, keyboard handlers, color alternatives across all components.
+- **Frontend test coverage**: 255 tests across 19 test files, v8 coverage configured.
 
 ## Known Pitfalls
 
