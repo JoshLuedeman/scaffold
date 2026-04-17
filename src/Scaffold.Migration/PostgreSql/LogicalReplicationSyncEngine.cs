@@ -18,6 +18,7 @@ public class LogicalReplicationSyncEngine
     private readonly PostgreSqlBulkCopier _bulkCopier;
     private readonly IProgress<MigrationProgress>? _progress;
     private readonly TimeSpan _pollInterval;
+    private readonly ReplicationRetryPolicy? _retryPolicy;
 
     private string _sourceConnectionString = string.Empty;
     private string _targetConnectionString = string.Empty;
@@ -32,11 +33,13 @@ public class LogicalReplicationSyncEngine
     public LogicalReplicationSyncEngine(
         PostgreSqlBulkCopier bulkCopier,
         IProgress<MigrationProgress>? progress = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null,
+        ReplicationRetryPolicy? retryPolicy = null)
     {
         _bulkCopier = bulkCopier ?? throw new ArgumentNullException(nameof(bulkCopier));
         _progress = progress;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(1);
+        _retryPolicy = retryPolicy;
     }
 
     public long TotalRowsSynced => _totalRowsSynced;
@@ -222,7 +225,15 @@ public class LogicalReplicationSyncEngine
             {
                 ct.ThrowIfCancellationRequested();
 
-                await ApplyReplicationMessageAsync(message, ct);
+                if (_retryPolicy is not null)
+                {
+                    await _retryPolicy.ExecuteAsync(
+                        async token => await ApplyReplicationMessageAsync(message, token), ct);
+                }
+                else
+                {
+                    await ApplyReplicationMessageAsync(message, ct);
+                }
 
                 // Acknowledge the message
                 _replicationConnection.SetReplicationStatus(message.WalEnd);
