@@ -18,7 +18,6 @@ import {
   Button,
   Card,
   CardHeader,
-  Checkbox,
   Dialog,
   DialogActions,
   DialogBody,
@@ -46,6 +45,7 @@ import { TargetTierSection } from './TargetTierSection';
 import { RegionPricingSection } from './RegionPricingSection';
 import { ScriptSection } from './ScriptSection';
 import { ReviewApproveSection } from './ReviewApproveSection';
+import { TargetConnectionSection } from './TargetConnectionSection';
 
 const useStyles = makeStyles({
   root: {
@@ -102,6 +102,9 @@ export default function MigrationConfig() {
   const [targetPassword, setTargetPassword] = useState('');
   const [testingTarget, setTestingTarget] = useState(false);
   const [targetTestResult, setTargetTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [targetPort, setTargetPort] = useState('5432');
+  const [targetSslMode, setTargetSslMode] = useState('Require');
+  const [targetAuthType, setTargetAuthType] = useState('SQL');
 
   // Region pricing state
   const [regionPricing, setRegionPricing] = useState<RegionPricing[]>([]);
@@ -304,6 +307,12 @@ export default function MigrationConfig() {
     setCustomScripts(prev => prev.filter(s => s.scriptId !== scriptId));
   };
 
+  const updateCustomScript = (scriptId: string, label: string, content: string) => {
+    setCustomScripts(prev => prev.map(s =>
+      s.scriptId === scriptId ? { ...s, label, sqlContent: content } : s
+    ));
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -315,15 +324,23 @@ export default function MigrationConfig() {
   async function testTargetConnection() {
     setTestingTarget(true);
     setTargetTestResult(null);
+    const platform = targetPlatform ?? sourcePlatform;
     try {
-      await api.post('/connections/test', {
+      const body: Record<string, unknown> = {
         server: targetServer,
         database: targetDatabase,
-        useSqlAuthentication: true,
         username: targetUsername,
         password: targetPassword,
-        trustServerCertificate: true,
-      });
+        platform: platform ?? 'SqlServer',
+      };
+      if (platform === 'PostgreSql') {
+        body.port = parseInt(targetPort) || 5432;
+        body.sslMode = targetSslMode;
+      } else {
+        body.useSqlAuthentication = targetAuthType === 'SQL';
+        body.trustServerCertificate = true;
+      }
+      await api.post('/connections/test', body);
       setTargetTestResult({ ok: true, message: 'Connection successful' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Connection failed';
@@ -334,14 +351,20 @@ export default function MigrationConfig() {
   }
 
   function buildTargetConnectionString(): string {
+    const platform = targetPlatform ?? sourcePlatform;
+    if (platform === 'PostgreSql') {
+      return `Host=${targetServer};Port=${targetPort};Database=${targetDatabase};Username=${targetUsername};Password=${targetPassword};SSL Mode=${targetSslMode}`;
+    }
     const parts = [
       `Server=${targetServer}`,
       `Database=${targetDatabase}`,
-      `User Id=${targetUsername}`,
-      `Password=${targetPassword}`,
-      'TrustServerCertificate=True',
-      'Encrypt=True',
     ];
+    if (targetAuthType === 'SQL') {
+      parts.push(`User Id=${targetUsername}`, `Password=${targetPassword}`);
+    } else {
+      parts.push('Integrated Security=True');
+    }
+    parts.push('TrustServerCertificate=True', 'Encrypt=True');
     return parts.join(';');
   }
 
@@ -506,49 +529,34 @@ export default function MigrationConfig() {
         selectedRegion={selectedRegion}
         onRegionChange={setSelectedRegion}
         loadingPricing={loadingPricing}
+        recommendation={recommendation}
+        serviceOverride={serviceOverride}
+        tierOverride={tierOverride}
       />
 
-      {/* Target Database */}
-      <Card className={styles.card}>
-        <CardHeader header={<Text className={styles.cardTitle}>Target Database</Text>} />
-        <Checkbox
-          label={sourcePlatform === 'PostgreSql'
-            ? 'Use an existing Azure Database for PostgreSQL as the migration target'
-            : 'Use an existing Azure SQL database as the migration target'}
-          checked={useExistingTarget}
-          onChange={(_, data) => setUseExistingTarget(data.checked === true)}
-        />
-        {useExistingTarget && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-            <Field label="Server">
-              <Input
-                placeholder={sourcePlatform === 'PostgreSql' ? 'myserver.postgres.database.azure.com' : 'myserver.database.windows.net'}
-                value={targetServer}
-                onChange={(_, d) => setTargetServer(d.value)}
-              />
-            </Field>
-            <Field label="Database">
-              <Input value={targetDatabase} onChange={(_, d) => setTargetDatabase(d.value)} />
-            </Field>
-            <Field label="Username">
-              <Input value={targetUsername} onChange={(_, d) => setTargetUsername(d.value)} />
-            </Field>
-            <Field label="Password">
-              <Input type="password" value={targetPassword} onChange={(_, d) => setTargetPassword(d.value)} />
-            </Field>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <Button appearance="secondary" onClick={testTargetConnection} disabled={testingTarget || !targetServer || !targetDatabase}>
-                {testingTarget ? 'Testing...' : 'Test Connection'}
-              </Button>
-              {targetTestResult && (
-                <MessageBar intent={targetTestResult.ok ? 'success' : 'error'}>
-                  <MessageBarBody>{targetTestResult.message}</MessageBarBody>
-                </MessageBar>
-              )}
-            </div>
-          </div>
-        )}
-      </Card>
+      <TargetConnectionSection
+        useExistingTarget={useExistingTarget}
+        onUseExistingTargetChange={setUseExistingTarget}
+        targetServer={targetServer}
+        onTargetServerChange={setTargetServer}
+        targetDatabase={targetDatabase}
+        onTargetDatabaseChange={setTargetDatabase}
+        targetUsername={targetUsername}
+        onTargetUsernameChange={setTargetUsername}
+        targetPassword={targetPassword}
+        onTargetPasswordChange={setTargetPassword}
+        targetPort={targetPort}
+        onTargetPortChange={setTargetPort}
+        targetSslMode={targetSslMode}
+        onTargetSslModeChange={setTargetSslMode}
+        targetAuthType={targetAuthType}
+        onTargetAuthTypeChange={setTargetAuthType}
+        testingTarget={testingTarget}
+        targetTestResult={targetTestResult}
+        onTestConnection={testTargetConnection}
+        sourcePlatform={sourcePlatform}
+        targetPlatform={targetPlatform}
+      />
 
       {/* Schedule */}
       <Card className={styles.card}>
@@ -579,6 +587,7 @@ export default function MigrationConfig() {
         onPreviewScript={previewCannedScript}
         onRemoveCustomScript={removeCustomScript}
         onAddCustomScript={(phase) => { setCustomDialogPhase(phase); setShowCustomDialog(true); }}
+        onUpdateCustomScript={updateCustomScript}
       />
 
       <ScriptSection
@@ -590,6 +599,7 @@ export default function MigrationConfig() {
         onPreviewScript={previewCannedScript}
         onRemoveCustomScript={removeCustomScript}
         onAddCustomScript={(phase) => { setCustomDialogPhase(phase); setShowCustomDialog(true); }}
+        onUpdateCustomScript={updateCustomScript}
       />
 
       {/* Save */}
