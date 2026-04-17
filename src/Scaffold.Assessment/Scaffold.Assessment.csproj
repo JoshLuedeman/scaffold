@@ -10,6 +10,7 @@
     <PackageReference Include="Azure.Identity" Version="1.12.*" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.*" />
+    <PackageReference Include="Npgsql" Version="8.0.*" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -17,5 +18,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Scaffold.Assessment.Tests" />
+  </ItemGroup>
 
 </Project>

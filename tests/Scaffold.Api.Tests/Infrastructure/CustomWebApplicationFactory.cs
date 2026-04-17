@@ -218,7 +218,7 @@ public class StubAssessmentEngine : IAssessmentEngine
 public class StubAssessmentEngineFactory : IAssessmentEngineFactory
 {
     public IAssessmentEngine Create(DatabasePlatform platform) => new StubAssessmentEngine();
-    public IEnumerable<DatabasePlatform> SupportedPlatforms => [DatabasePlatform.SqlServer];
+    public IEnumerable<DatabasePlatform> SupportedPlatforms => [DatabasePlatform.SqlServer, DatabasePlatform.PostgreSql];
 }
 
 /// <summary>

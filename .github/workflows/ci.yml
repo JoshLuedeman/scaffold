@@ -109,6 +109,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 15
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ScaffoldTest2025!
+          POSTGRES_DB: scaffold_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -123,6 +136,7 @@ jobs:
       - name: Run integration tests
         env:
           SCAFFOLD_TEST_CONNECTION_STRING: "Server=localhost,1433;Database=ScaffoldTestDb;User Id=sa;Password=ScaffoldTest2025!;TrustServerCertificate=true;Encrypt=true"
+          SCAFFOLD_TEST_PG_CONNECTION_STRING: "Host=localhost;Port=5432;Database=scaffold_test;Username=postgres;Password=ScaffoldTest2025!"
         run: dotnet test tests/Scaffold.Integration.Tests --no-build --configuration Release --logger "trx;LogFileName=integration-results.trx"
 
       - name: Upload integration test results

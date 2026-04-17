@@ -279,6 +279,80 @@ public class AzurePricingServiceTests : IDisposable
         Assert.DoesNotContain("armSkuName eq", url);
     }
 
+    // ── PostgreSQL Flexible Server pricing ──────────────────────────
+
+    [Fact]
+    public async Task GetPricingForTierAsync_FlexibleServer_BuildsCorrectFilter()
+    {
+        EnqueueItems(MakeItem(
+            serviceName: "Azure Database for PostgreSQL",
+            productName: "Azure Database for PostgreSQL - Flexible Server"));
+        var svc = CreateService();
+
+        await svc.GetPricingForTierAsync("Azure Database for PostgreSQL - Flexible Server", "GP_Standard_D2s_v3", 32);
+
+        Assert.Single(_handler.RequestUrls);
+        var url = Uri.UnescapeDataString(_handler.RequestUrls[0]);
+        Assert.Contains("serviceName eq 'Azure Database for PostgreSQL'", url);
+        Assert.Contains("armSkuName eq 'GP_Standard_D2s_v3'", url);
+        Assert.Contains("priceType eq 'Consumption'", url);
+        Assert.Contains("currencyCode eq 'USD'", url);
+    }
+
+    [Fact]
+    public async Task GetPricingForTierAsync_PostgreSqlVm_UsesLinuxFilter()
+    {
+        EnqueueItems(MakeItem(
+            retailPrice: 0.096m,
+            meterName: "D2s v5",
+            productName: "Virtual Machines Dsv5 Series Linux",
+            serviceName: "Virtual Machines"));
+        var svc = CreateService();
+
+        await svc.GetPricingForTierAsync("PostgreSQL on Azure VM", "Standard_D2s_v5", 0);
+
+        Assert.Single(_handler.RequestUrls);
+        var url = Uri.UnescapeDataString(_handler.RequestUrls[0]);
+        Assert.Contains("armSkuName eq 'Standard_D2s_v5'", url);
+        Assert.Contains("contains(productName, 'Linux')", url);
+        Assert.DoesNotContain("Windows", url);
+    }
+
+    [Fact]
+    public async Task GetPricingForTierAsync_FlexibleServer_CalculatesMonthlyFromHourly()
+    {
+        EnqueueItems(MakeItem(
+            retailPrice: 0.1020m,
+            unitOfMeasure: "1 Hour",
+            meterName: "vCore",
+            serviceName: "Azure Database for PostgreSQL",
+            productName: "Azure Database for PostgreSQL - Flexible Server"));
+        var svc = CreateService();
+
+        var results = await svc.GetPricingForTierAsync(
+            "Azure Database for PostgreSQL - Flexible Server", "GP_Standard_D2s_v3", 0);
+
+        Assert.Single(results);
+        Assert.Equal(0.1020m * 730, results[0].EstimatedMonthlyCostUsd, 2);
+    }
+
+    [Fact]
+    public async Task GetPricingForTierAsync_PostgreSqlVm_CalculatesMonthlyFromHourly()
+    {
+        EnqueueItems(MakeItem(
+            retailPrice: 0.096m,
+            unitOfMeasure: "1 Hour",
+            meterName: "D2s v5",
+            productName: "Virtual Machines Dsv5 Series Linux",
+            serviceName: "Virtual Machines"));
+        var svc = CreateService();
+
+        var results = await svc.GetPricingForTierAsync("PostgreSQL on Azure VM", "Standard_D2s_v5", 0);
+
+        Assert.Single(results);
+        Assert.Equal(0.096m * 730, results[0].EstimatedMonthlyCostUsd, 2);
+    }
+
     private class MockHttpMessageHandler : HttpMessageHandler
     {
         private readonly Queue<HttpResponseMessage> _responses = new();
