@@ -332,7 +332,7 @@ public class MigrationScriptGeneratorTests
         var result = MigrationScriptGenerator.GenerateCreateForeignKeysPostgreSql(schema);
 
         Assert.Contains("ALTER TABLE \"public\".\"Orders\" ADD CONSTRAINT \"FK_Orders_Customer\"", result);
-        Assert.Contains("FOREIGN KEY (\"CustomerId\") REFERENCES \"dbo\".\"Customers\" (\"Id\")", result);
+        Assert.Contains("FOREIGN KEY (\"CustomerId\") REFERENCES \"public\".\"Customers\" (\"Id\")", result);
         Assert.Contains("ON DELETE NO ACTION ON UPDATE NO ACTION", result);
     }
 

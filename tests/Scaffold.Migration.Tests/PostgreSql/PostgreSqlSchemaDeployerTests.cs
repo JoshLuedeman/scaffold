@@ -85,7 +85,7 @@ public class PostgreSqlSchemaDeployerTests
     #region Progress reporting
 
     [Fact]
-    public async Task DeploySchemaAsync_ReportsProgressAtKeyStages()
+    public async Task SchemaDeployer_MocksConfiguredCorrectly_ReturnsExpectedResults()
     {
         // Arrange
         var tables = new List<TableDefinition>

@@ -138,7 +138,7 @@ public static class MigrationScriptGenerator
         {
             if (!string.IsNullOrEmpty(fk.Columns) && !string.IsNullOrEmpty(fk.ReferencedTable) && !string.IsNullOrEmpty(fk.ReferencedColumns))
             {
-                var refSchema = fk.ReferencedSchema ?? "public";
+                var refSchema = MapSchemaToPg(fk.ReferencedSchema ?? "dbo");
                 var fkColumns = FormatColumnListPg(fk.Columns);
                 var refColumns = FormatColumnListPg(fk.ReferencedColumns);
                 var parentSchema = MapSchemaToPg(fk.Schema);

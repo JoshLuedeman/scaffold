@@ -83,7 +83,8 @@ public class SqlServerSchemaReader
                 c.ORDINAL_POSITION,
                 COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsIdentity') AS IsIdentity,
                 COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsComputed') AS IsComputed,
-                cc.definition AS ComputedExpression
+                cc.definition AS ComputedExpression,
+                c.DATETIME_PRECISION
             FROM INFORMATION_SCHEMA.COLUMNS c
             LEFT JOIN sys.computed_columns cc
                 ON cc.object_id = OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME)
@@ -113,6 +114,13 @@ public class SqlServerSchemaReader
                 IsComputed = !reader.IsDBNull(11) && reader.GetInt32(11) == 1,
                 ComputedExpression = reader.IsDBNull(12) ? null : reader.GetString(12)
             };
+
+            // Use DATETIME_PRECISION for datetime-family types instead of NUMERIC_PRECISION
+            var dataType = col.DataType.ToLowerInvariant();
+            if (dataType is "datetime2" or "datetimeoffset" or "time" && !reader.IsDBNull(13))
+            {
+                col.Precision = Convert.ToInt32(reader.GetValue(13));
+            }
             table.Columns.Add(col);
         }
     }

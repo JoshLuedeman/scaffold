@@ -197,7 +197,8 @@ public class DdlTranslator
     /// <summary>
     /// Wraps an identifier in PostgreSQL double-quotes.
     /// </summary>
-    public static string QuoteIdentifier(string name) => $"\"{name}\"";
+    public static string QuoteIdentifier(string name) => $"\"{name.Replace("\"", "\"\"")}\"";
+
 
     /// <summary>
     /// Translates a T-SQL CHECK constraint expression to PostgreSQL syntax.
