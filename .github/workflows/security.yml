@@ -21,7 +21,7 @@ jobs:
       matrix:
         language: ['csharp', 'javascript-typescript']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -47,7 +47,7 @@ jobs:
     name: Container Image Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build API image
         run: docker build -f src/Scaffold.Api/Dockerfile -t scaffold-api:scan .
