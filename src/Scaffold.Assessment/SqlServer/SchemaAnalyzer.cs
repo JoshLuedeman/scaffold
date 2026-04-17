@@ -160,6 +160,7 @@ public class SchemaAnalyzer
                 ObjectType = "Constraint"
             });
         }
+        await reader.CloseAsync();
 
         // Collect FK constraints with full relationship metadata
         const string fkSql = @"
