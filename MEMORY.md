@@ -70,8 +70,8 @@ azd up                                              # Deploy to Azure
 | **Phase 0**: Foundation & Production Readiness | Multi-platform refactoring, error handling, health checks | ✅ Merged (PR #89, 17 issues) |
 | **Phase 0.5**: Infrastructure & DevOps Hardening | Observability, CD pipeline, security scanning, VNet, alerts | ✅ Merged (PR #90, 10 issues) |
 | **Phase 1**: PostgreSQL Assessment Engine | Npgsql, PG schema/data/perf analysis, compatibility, pricing | ✅ Merged (PR #119, 15 issues) |
-| **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | Planned |
-| **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | Planned |
+| **Phase 2**: SQL Server → PostgreSQL Migration | Data type mapping, DDL translation, schema deploy, bulk data | ✅ Merged (PR #120, 8 issues) |
+| **Phase 3**: PostgreSQL → Azure PG Migration | PG schema extractor, data copier, logical replication | ✅ Merged (PR #121, 8 issues) |
 | **Phase 4**: UI & API Multi-Platform | Controllers, TypeScript types, platform selector, PG progress | Planned |
 | **Phase 5**: Documentation & Release Prep | ADR, README, API docs, Docker Compose PG, MEMORY.md | Planned |
 
@@ -142,6 +142,29 @@ azd up                                              # Deploy to Azure
 - **Security hardening**: Identifier escaping (`]`→`]]`, `"`→`""`), FK action whitelist, computed column comment sanitization, credential protection via `IsModified=false`, scoped DbContext in background tasks, sanitized error messages via SignalR.
 - **MigrationScriptGenerator**: Generates DROP FK/index/trigger and CREATE trigger/view/procedure/function scripts for pre/post migration.
 - **Integration tests**: 41 integration tests (35 assessment + 6 cross-platform migration) running against SQL Server 2022 + PostgreSQL 16 in CI.
+
+### Phase 3 Lessons Learned
+- **Replication slot ordering is critical**: Must create replication slot *before* initial data load, not after. Otherwise, changes between load completion and slot creation are permanently lost. Use `LogicalSlotSnapshotInitMode.Export` for the slot.
+- **`setval()` with double-quoted identifiers fails**: `QuotePgName` produces `"schema"."seq"` which PG parses as a qualified column reference. Use `@seqName::regclass` with parameterized queries instead.
+- **Composite FK from `information_schema` produces Cartesian product**: `key_column_usage ⨝ constraint_column_usage` yields N×N rows for N-column composite FKs. Use `pg_constraint` with `unnest(conkey, confkey) WITH ORDINALITY` for correct positional pairing.
+- **NULL-safe deletes in replication**: `WHERE col = @param` with `DBNull.Value` evaluates to `UNKNOWN`, silently dropping deletes. Use `IS NOT DISTINCT FROM` instead.
+- **Connection-per-message exhausts pool**: Logical replication apply methods must share a single persistent target connection, not open/close per message.
+- **`setval()` off-by-one for empty tables**: `setval(seq, 1, true)` makes next `nextval()` return 2. Use `is_called = COALESCE((SELECT MAX(col) FROM t) IS NOT NULL, false)` for correct behavior.
+- **UDT types need schema qualification**: `information_schema.columns.udt_name` lacks schema info. Include `udt_schema` and schema-qualify types not in the `public` schema.
+- **DDL without transaction**: Partial schema on failure. Always wrap DDL deployment in `BEGIN`/`COMMIT`/`ROLLBACK`.
+- **Review pipeline matured**: 3-agent parallel review (code-review + dba-agent + security-auditor) → architect triage → coder fixes → Round 2 review. Budget for 2 rounds.
+
+### Phase 3 Architecture Additions
+- **PostgreSQL Schema Extractor**: `PostgreSqlSchemaExtractor` queries `pg_catalog`/`information_schema` for tables, columns, indexes, FKs, sequences, views, functions, extensions. Returns `PgSchemaSnapshot`.
+- **DDL Generator**: `PostgreSqlDdlGenerator` generates CREATE statements in dependency order using `TopologicalSorter`. Handles enums, sequences, tables, FKs, indexes, views, functions.
+- **Azure Extension Handler**: `AzureExtensionHandler` maps on-prem PG extensions to Azure-compatible alternatives or flags unsupported ones.
+- **Bulk Data Copier**: `PostgreSqlBulkCopier` uses COPY protocol for PG→PG streaming with sequence reset and trigger management.
+- **Logical Replication**: `LogicalReplicationSyncEngine` implements pgoutput protocol via Npgsql 8.0 native replication for continuous sync with idempotent apply (ON CONFLICT DO NOTHING/UPDATE, IS NOT DISTINCT FROM).
+- **Retry Policy**: `ReplicationRetryPolicy` with exponential backoff, circuit breaker, and 13 transient PG error codes.
+- **Migration Orchestrator**: `PostgreSqlMigrator` implements 8-step cutover pipeline: assess → extract → generate DDL → deploy schema → extensions → data copy → validate → cutover.
+- **Cancellation Service**: `MigrationCancellationService` singleton with `ConcurrentDictionary<Guid, CTS>` for migration cancellation via API endpoint.
+- **Validation Engine**: `PostgreSqlToPostgreSqlValidationEngine` for PG→PG row count validation.
+- **Test Coverage**: 755 migration tests, 24 integration tests (PG container required).
 
 ## Known Pitfalls
 
