@@ -1,5 +1,6 @@
 using Moq;
 using Scaffold.Assessment.PostgreSql;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
@@ -275,7 +276,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithPricing_UsesCheapestRegion()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
@@ -294,7 +295,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithPricing_PopulatesRegionalPricing()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
@@ -312,7 +313,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithEmptyPricing_KeepsHardcodedCost()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>());
 
         var result = await TierRecommender.RecommendAsync(
@@ -326,7 +327,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_CallsPricingWithCorrectArgs()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>());
 
         await TierRecommender.RecommendAsync(
@@ -334,7 +335,7 @@ public class TierRecommenderTests
 
         // Burstable B2ms with 2 GB storage (1 GB * 1.2 = 1.2 → rounds to 2)
         mock.Verify(s => s.GetPricingForTierAsync(
-            "Azure Database for PostgreSQL - Flexible Server", "B_Standard_B2ms", 2), Times.Once);
+            "Azure Database for PostgreSQL - Flexible Server", "B_Standard_B2ms", 2, It.IsAny<DatabasePlatform>()), Times.Once);
     }
 
     // ── Flexible Server preferred when no blockers ──────────────────

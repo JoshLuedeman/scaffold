@@ -1,5 +1,6 @@
 using Moq;
 using Scaffold.Assessment.SqlServer;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
@@ -310,7 +311,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithPricing_UsesCheapestRegion()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
@@ -329,7 +330,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithPricing_PopulatesRegionalPricing()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "eastus", DisplayName = "East US", EstimatedMonthlyCostUsd = 100m },
@@ -348,7 +349,7 @@ public class TierRecommenderTests
     public async Task RecommendAsync_WithEmptyPricing_KeepsHardcodedCost()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>());
 
         var result = await TierRecommender.RecommendAsync(
@@ -362,20 +363,20 @@ public class TierRecommenderTests
     public async Task RecommendAsync_CallsPricingWithCorrectArgs()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>());
 
         await TierRecommender.RecommendAsync(
             Perf(cpu: 1, io: 0.1), Data(1 * OneGb), 100, null, mock.Object);
 
-        mock.Verify(s => s.GetPricingForTierAsync("Azure SQL Database", "Basic", 2), Times.Once);
+        mock.Verify(s => s.GetPricingForTierAsync("Azure SQL Database", "Basic", 2, It.IsAny<DatabasePlatform>()), Times.Once);
     }
 
     [Fact]
     public async Task RecommendAsync_WithPricing_SelectsCheapestFromUnsortedList()
     {
         var mock = new Mock<IAzurePricingService>();
-        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        mock.Setup(s => s.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "westeurope", DisplayName = "West Europe", EstimatedMonthlyCostUsd = 500m },

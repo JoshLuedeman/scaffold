@@ -134,7 +134,7 @@ public class PostgreSqlAssessorTests
         var mockPricing = new Mock<IAzurePricingService>();
 
         mockPricing
-            .Setup(p => p.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(p => p.GetPricingForTierAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<DatabasePlatform>()))
             .ReturnsAsync(new List<RegionPricing>
             {
                 new() { ArmRegionName = "eastus", EstimatedMonthlyCostUsd = 100m }

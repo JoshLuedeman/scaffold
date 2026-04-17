@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
@@ -31,7 +32,7 @@ public class AzurePricingService : IAzurePricingService
         _logger = logger;
     }
 
-    public async Task<List<RegionPricing>> GetPricingForTierAsync(string serviceTier, string computeSize, int storageGb)
+    public async Task<List<RegionPricing>> GetPricingForTierAsync(string serviceTier, string computeSize, int storageGb, DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
         var cacheKey = $"pricing:{serviceTier}:{computeSize}:{storageGb}";
         if (_cache.TryGetValue(cacheKey, out List<RegionPricing>? cached) && cached is not null)
@@ -75,16 +76,22 @@ public class AzurePricingService : IAzurePricingService
         }
     }
 
-    public async Task<List<string>> GetAvailableRegionsAsync()
+    public async Task<List<string>> GetAvailableRegionsAsync(DatabasePlatform platform = DatabasePlatform.SqlServer)
     {
-        const string cacheKey = "pricing:regions";
+        var cacheKey = $"pricing:regions:{platform}";
         if (_cache.TryGetValue(cacheKey, out List<string>? cached) && cached is not null)
             return cached;
 
         try
         {
-            // Use a narrow query to get regions quickly
-            var filter = "serviceName eq 'SQL Database' and priceType eq 'Consumption' and currencyCode eq 'USD' and armSkuName eq 'SQLDB_GP_Compute_Gen5_2'";
+            // Use a narrow query to get regions quickly — different service per platform
+            var filter = platform switch
+            {
+                DatabasePlatform.PostgreSql =>
+                    "serviceName eq 'Azure Database for PostgreSQL' and priceType eq 'Consumption' and currencyCode eq 'USD' and armSkuName eq 'GP_Standard_D2s_v3'",
+                _ =>
+                    "serviceName eq 'SQL Database' and priceType eq 'Consumption' and currencyCode eq 'USD' and armSkuName eq 'SQLDB_GP_Compute_Gen5_2'"
+            };
             var priceItems = await FetchAllPagesAsync(filter);
 
             var regions = priceItems
