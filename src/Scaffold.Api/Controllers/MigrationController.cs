@@ -21,6 +21,7 @@ public class MigrationController : ControllerBase
     private readonly ScaffoldDbContext _dbContext;
     private readonly IMigrationEngineFactory _migrationEngineFactory;
     private readonly MigrationProgressService _progressService;
+    private readonly MigrationCancellationService _cancellationService;
     private readonly ValidationEngine _validationEngine;
     private readonly IConnectionStringProtector _protector;
     private readonly IPreMigrationValidator _preMigrationValidator;
@@ -32,6 +33,7 @@ public class MigrationController : ControllerBase
         ScaffoldDbContext dbContext,
         IMigrationEngineFactory migrationEngineFactory,
         MigrationProgressService progressService,
+        MigrationCancellationService cancellationService,
         ValidationEngine validationEngine,
         IConnectionStringProtector protector,
         IPreMigrationValidator preMigrationValidator,
@@ -42,6 +44,7 @@ public class MigrationController : ControllerBase
         _dbContext = dbContext;
         _migrationEngineFactory = migrationEngineFactory;
         _progressService = progressService;
+        _cancellationService = cancellationService;
         _validationEngine = validationEngine;
         _protector = protector;
         _preMigrationValidator = preMigrationValidator;
@@ -114,7 +117,11 @@ public class MigrationController : ControllerBase
             var scopeFactory = _scopeFactory;
             var progressService = _progressService;
             var validationEngine = _validationEngine;
+            var cancellationService = _cancellationService;
             var logger = _logger;
+
+            // Register cancellation token for this migration
+            var migrationCt = cancellationService.Register(migrationId);
 
             _ = Task.Run(async () =>
             {
@@ -145,12 +152,12 @@ public class MigrationController : ControllerBase
 
                     if (bgPlan.Strategy == MigrationStrategy.ContinuousSync)
                     {
-                        await migrationEngine.StartContinuousSyncAsync(bgPlan, progressService, CancellationToken.None);
+                        await migrationEngine.StartContinuousSyncAsync(bgPlan, progressService, migrationCt);
                         // For continuous sync, the result comes from CompleteCutoverAsync later
                         return;
                     }
 
-                    result = await migrationEngine.ExecuteCutoverAsync(bgPlan, progressService, CancellationToken.None);
+                    result = await migrationEngine.ExecuteCutoverAsync(bgPlan, progressService, migrationCt);
                     result.Id = migrationId;
 
                     // Run post-migration validation
@@ -158,7 +165,7 @@ public class MigrationController : ControllerBase
                         sourceConnStr,
                         targetConnStr,
                         bgPlan.IncludedObjects,
-                        CancellationToken.None);
+                        migrationCt);
 
                     result.Validations = validationSummary.Results;
                     result.Success = result.Success && validationSummary.AllPassed;
@@ -169,6 +176,27 @@ public class MigrationController : ControllerBase
                     await db.SaveChangesAsync(CancellationToken.None);
 
                     await progressService.MigrationCompleted(migrationIdStr);
+                }
+                catch (OperationCanceledException)
+                {
+                    logger.LogInformation("Migration {MigrationId} was cancelled", migrationIdStr);
+                    // Status may already be set by the Cancel endpoint; ensure cleanup
+                    cancellationService.Unregister(migrationId);
+                    try
+                    {
+                        await using var cancelScope = scopeFactory.CreateAsyncScope();
+                        var cancelDb = cancelScope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+                        var cancelPlan = await cancelDb.MigrationPlans.FindAsync(planId);
+                        var cancelProjectRepo = cancelScope.ServiceProvider.GetRequiredService<IProjectRepository>();
+                        var cancelProject = await cancelProjectRepo.GetByIdAsync(projectId2);
+                        if (cancelPlan is not null && cancelPlan.Status != MigrationStatus.Cancelled)
+                            cancelPlan.Status = MigrationStatus.Cancelled;
+                        if (cancelProject.Status != ProjectStatus.Failed)
+                            cancelProject.Status = ProjectStatus.Failed;
+                        await cancelDb.SaveChangesAsync(CancellationToken.None);
+                    }
+                    catch { }
+                    await progressService.MigrationFailed(migrationIdStr, "Migration was cancelled.");
                 }
                 catch (Exception ex)
                 {
@@ -187,6 +215,10 @@ public class MigrationController : ControllerBase
                     }
                     catch { }
                     await progressService.MigrationFailed(migrationIdStr, "Migration failed due to an internal error. Check server logs for details.");
+                }
+                finally
+                {
+                    cancellationService.Unregister(migrationId);
                 }
             });
 
@@ -211,6 +243,44 @@ public class MigrationController : ControllerBase
             return NotFound("Migration not found.");
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Cancel a running migration.
+    /// </summary>
+    [HttpPost("{migrationId:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid projectId, Guid migrationId, CancellationToken ct)
+    {
+        try
+        {
+            var project = await _projectRepository.GetByIdAsync(projectId);
+
+            if (project.MigrationPlan is null)
+                return NotFound("No migration plan found for this project.");
+
+            if (project.MigrationPlan.Status != MigrationStatus.Running)
+                return BadRequest("Only running migrations can be cancelled.");
+
+            if (project.MigrationPlan.MigrationId != migrationId)
+                return BadRequest("Migration ID does not match the active migration.");
+
+            var cancelled = _cancellationService.Cancel(migrationId);
+            if (!cancelled)
+                return BadRequest("Migration is not active or has already completed.");
+
+            // Update status
+            project.MigrationPlan.Status = MigrationStatus.Cancelled;
+            project.Status = ProjectStatus.Failed; // Cancelled = failed state for project
+            await _dbContext.SaveChangesAsync(ct);
+
+            await _progressService.MigrationFailed(migrationId.ToString(), "Migration was cancelled by user.");
+
+            return Ok(new { Message = "Migration cancellation requested.", MigrationId = migrationId });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>

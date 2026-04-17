@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Npgsql;
 using NpgsqlTypes;
 using Scaffold.Core.Interfaces;
+using Scaffold.Migration.Shared;
 
 namespace Scaffold.Migration.PostgreSql;
 
@@ -296,41 +297,19 @@ public class CrossPlatformBulkCopier
     /// Quotes a table name for PostgreSQL: dbo.Users → "public"."Users".
     /// Maps "dbo" schema to "public". Escapes embedded double-quotes.
     /// </summary>
-    public static string QuotePgName(string tableName)
-    {
-        var parts = tableName.Split('.');
-        if (parts.Length == 2 &&
-            parts[0].Trim('[', ']', '"').Equals("dbo", StringComparison.OrdinalIgnoreCase))
-        {
-            parts[0] = "public";
-        }
-
-        return string.Join(".", parts.Select(p =>
-        {
-            var clean = p.Trim('[', ']', '"');
-            return $"\"{clean.Replace("\"", "\"\"")}\"";
-        }));
-    }
+    public static string QuotePgName(string tableName) => PgIdentifierHelper.QuotePgName(tableName);
 
     /// <summary>
     /// Quotes a table name for SQL Server: dbo.Users → [dbo].[Users].
     /// Escapes embedded ']' characters by doubling them to prevent SQL injection.
     /// </summary>
-    public static string QuoteSqlName(string tableName)
-    {
-        var parts = tableName.Split('.');
-        return string.Join(".", parts.Select(p =>
-        {
-            var clean = p.Trim('[', ']');
-            return $"[{clean.Replace("]", "]]")}]";
-        }));
-    }
+    public static string QuoteSqlName(string tableName) => PgIdentifierHelper.QuoteSqlName(tableName);
 
     /// <summary>
     /// Clamps a timeout value to [30, 3600], using defaultValue when value is null.
     /// </summary>
     internal static int ClampTimeout(int? value, int defaultValue)
-        => Math.Clamp(value ?? defaultValue, 30, 3600);
+        => PgIdentifierHelper.ClampTimeout(value, defaultValue);
 
     /// <summary>
     /// Topological sort (Kahn's algorithm). Parents before children.
@@ -339,36 +318,5 @@ public class CrossPlatformBulkCopier
     internal static List<string> TopologicalSort(
         IReadOnlyList<string> tableNames,
         Dictionary<string, HashSet<string>> dependsOn)
-    {
-        var inDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var t in tableNames) inDegree[t] = dependsOn[t].Count;
-
-        var queue = new Queue<string>(tableNames.Where(t => inDegree[t] == 0));
-        var ordered = new List<string>(tableNames.Count);
-
-        while (queue.Count > 0)
-        {
-            var current = queue.Dequeue();
-            ordered.Add(current);
-
-            foreach (var (child, parents) in dependsOn)
-            {
-                if (parents.Remove(current))
-                {
-                    inDegree[child]--;
-                    if (inDegree[child] == 0)
-                        queue.Enqueue(child);
-                }
-            }
-        }
-
-        // Append remaining (circular dependencies) in original order
-        foreach (var t in tableNames)
-        {
-            if (!ordered.Contains(t))
-                ordered.Add(t);
-        }
-
-        return ordered;
-    }
+        => TopologicalSorter.Sort(tableNames, dependsOn);
 }

@@ -14,7 +14,8 @@ public class MigrationEngineFactory : IMigrationEngineFactory
     {
         _factories = new()
         {
-            [DatabasePlatform.SqlServer] = () => serviceProvider.GetRequiredService<SqlServerMigrator>()
+            [DatabasePlatform.SqlServer] = () => serviceProvider.GetRequiredService<SqlServerMigrator>(),
+            [DatabasePlatform.PostgreSql] = () => serviceProvider.GetRequiredService<PostgreSqlMigrator>()
         };
 
         _crossPlatformFactories = new()

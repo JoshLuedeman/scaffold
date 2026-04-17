@@ -6,5 +6,6 @@ public enum MigrationStatus
     Scheduled,
     Running,
     Completed,
-    Failed
+    Failed,
+    Cancelled
 }

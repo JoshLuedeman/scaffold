@@ -56,6 +56,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddSignalR();
 builder.Services.AddScoped<MigrationProgressService>();
+builder.Services.AddSingleton<MigrationCancellationService>();
 builder.Services.AddHostedService<MigrationSchedulerService>();
 
 builder.Services.AddDataProtection();
@@ -78,6 +79,13 @@ builder.Services.AddScoped<CrossPlatformBulkCopier>();
 builder.Services.AddScoped<PostgreSqlScriptExecutor>();
 builder.Services.AddScoped<PostgreSqlValidationEngine>();
 builder.Services.AddScoped<SqlServerToPostgreSqlMigrator>();
+// PostgreSQL same-platform migration components
+builder.Services.AddScoped<PostgreSqlSchemaExtractor>();
+builder.Services.AddScoped<PostgreSqlDdlGenerator>();
+builder.Services.AddScoped<PostgreSqlBulkCopier>();
+builder.Services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+builder.Services.AddScoped<AzureExtensionHandler>();
+builder.Services.AddScoped<PostgreSqlMigrator>();
 builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
 builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();
 builder.Services.AddSingleton<ValidationEngine>();

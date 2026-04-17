@@ -100,33 +100,11 @@ public class PostgreSqlValidationEngine
     /// Quotes a table name for SQL Server: dbo.Users → [dbo].[Users].
     /// Escapes embedded ']' characters by doubling them to prevent SQL injection.
     /// </summary>
-    internal static string QuoteSqlName(string tableName)
-    {
-        var parts = tableName.Split('.');
-        return string.Join(".", parts.Select(p =>
-        {
-            var clean = p.Trim('[', ']');
-            return $"[{clean.Replace("]", "]]")}]";
-        }));
-    }
+    internal static string QuoteSqlName(string tableName) => PgIdentifierHelper.QuoteSqlName(tableName);
 
     /// <summary>
     /// Quotes a table name for PostgreSQL: dbo.Users → "public"."Users".
     /// Maps "dbo" schema to "public". Escapes embedded double-quotes.
     /// </summary>
-    internal static string QuotePgName(string tableName)
-    {
-        var parts = tableName.Split('.');
-        if (parts.Length == 2 &&
-            parts[0].Trim('"', '[', ']').Equals("dbo", StringComparison.OrdinalIgnoreCase))
-        {
-            parts[0] = "public";
-        }
-
-        return string.Join(".", parts.Select(p =>
-        {
-            var clean = p.Trim('[', ']', '"');
-            return $"\"{clean.Replace("\"", "\"\"")}\"";
-        }));
-    }
+    internal static string QuotePgName(string tableName) => PgIdentifierHelper.QuotePgName(tableName);
 }
