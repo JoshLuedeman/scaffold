@@ -122,16 +122,28 @@ describe('api.get / request function', () => {
     );
   });
 
-  it('makes a DELETE request', async () => {
+  it('makes a DELETE request and handles 204 No Content', async () => {
     const { api } = await getApi();
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 204, statusText: 'No Content' }),
+    );
 
-    await api.delete('/projects/1');
+    const result = await api.delete('/projects/1');
 
+    expect(result).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/projects/1'),
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('makes a DELETE request and parses JSON when body is returned', async () => {
+    const { api } = await getApi();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { deleted: true }));
+
+    const result = await api.delete<{ deleted: boolean }>('/items/1');
+
+    expect(result).toEqual({ deleted: true });
   });
 });
 
