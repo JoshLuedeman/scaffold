@@ -4,6 +4,7 @@ using Scaffold.Assessment.PostgreSql;
 using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
+using Scaffold.Migration.PostgreSql;
 using Scaffold.Migration.SqlServer;
 
 namespace Scaffold.Api.Tests;
@@ -120,16 +121,49 @@ public class EngineFactoryTests
     }
 
     [Fact]
+    public void MigrationFactory_Create_PostgreSql_Returns_PostgreSqlMigrator()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddScoped<PostgreSqlSchemaExtractor>();
+        services.AddScoped<PostgreSqlDdlGenerator>();
+        services.AddScoped<PostgreSqlBulkCopier>();
+        services.AddScoped<PostgreSqlScriptExecutor>();
+        services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+        services.AddScoped<AzureExtensionHandler>();
+        services.AddScoped<PostgreSqlMigrator>();
+        services.AddScoped<SqlServerMigrator>();
+        var provider = services.BuildServiceProvider();
+        var factory = new MigrationEngineFactory(provider);
+
+        // Act
+        var engine = factory.Create(DatabasePlatform.PostgreSql);
+
+        // Assert
+        Assert.NotNull(engine);
+        Assert.IsType<PostgreSqlMigrator>(engine);
+        Assert.Equal("PostgreSql", engine.SourcePlatform);
+    }
+
+    [Fact]
     public void MigrationFactory_Create_Unsupported_Throws_NotSupportedException()
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddScoped<SqlServerMigrator>();
+        services.AddScoped<PostgreSqlSchemaExtractor>();
+        services.AddScoped<PostgreSqlDdlGenerator>();
+        services.AddScoped<PostgreSqlBulkCopier>();
+        services.AddScoped<PostgreSqlScriptExecutor>();
+        services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+        services.AddScoped<AzureExtensionHandler>();
+        services.AddScoped<PostgreSqlMigrator>();
         var provider = services.BuildServiceProvider();
         var factory = new MigrationEngineFactory(provider);
 
-        // Act & Assert
-        var ex = Assert.Throws<NotSupportedException>(() => factory.Create(DatabasePlatform.PostgreSql));
-        Assert.Contains("PostgreSql", ex.Message);
+        // Act & Assert — use an undefined enum value to test unsupported platform
+        var ex = Assert.Throws<NotSupportedException>(() => factory.Create((DatabasePlatform)99));
+        Assert.Contains("99", ex.Message);
     }
 
     [Fact]
@@ -137,6 +171,14 @@ public class EngineFactoryTests
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddScoped<SqlServerMigrator>();
+        services.AddScoped<PostgreSqlSchemaExtractor>();
+        services.AddScoped<PostgreSqlDdlGenerator>();
+        services.AddScoped<PostgreSqlBulkCopier>();
+        services.AddScoped<PostgreSqlScriptExecutor>();
+        services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+        services.AddScoped<AzureExtensionHandler>();
+        services.AddScoped<PostgreSqlMigrator>();
         var provider = services.BuildServiceProvider();
         var factory = new MigrationEngineFactory(provider);
 
@@ -148,10 +190,18 @@ public class EngineFactoryTests
     }
 
     [Fact]
-    public void MigrationFactory_SupportedPlatforms_Does_Not_Include_PostgreSql()
+    public void MigrationFactory_SupportedPlatforms_Includes_PostgreSql()
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddScoped<SqlServerMigrator>();
+        services.AddScoped<PostgreSqlSchemaExtractor>();
+        services.AddScoped<PostgreSqlDdlGenerator>();
+        services.AddScoped<PostgreSqlBulkCopier>();
+        services.AddScoped<PostgreSqlScriptExecutor>();
+        services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+        services.AddScoped<AzureExtensionHandler>();
+        services.AddScoped<PostgreSqlMigrator>();
         var provider = services.BuildServiceProvider();
         var factory = new MigrationEngineFactory(provider);
 
@@ -159,7 +209,7 @@ public class EngineFactoryTests
         var platforms = factory.SupportedPlatforms;
 
         // Assert
-        Assert.DoesNotContain(DatabasePlatform.PostgreSql, platforms);
+        Assert.Contains(DatabasePlatform.PostgreSql, platforms);
     }
 
     #endregion
@@ -182,11 +232,19 @@ public class EngineFactoryTests
     }
 
     [Theory]
-    [InlineData(DatabasePlatform.PostgreSql)]
+    [InlineData((DatabasePlatform)99)]
     public void MigrationFactory_Create_Unsupported_Message_Contains_Platform(DatabasePlatform platform)
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddScoped<SqlServerMigrator>();
+        services.AddScoped<PostgreSqlSchemaExtractor>();
+        services.AddScoped<PostgreSqlDdlGenerator>();
+        services.AddScoped<PostgreSqlBulkCopier>();
+        services.AddScoped<PostgreSqlScriptExecutor>();
+        services.AddScoped<PostgreSqlToPostgreSqlValidationEngine>();
+        services.AddScoped<AzureExtensionHandler>();
+        services.AddScoped<PostgreSqlMigrator>();
         var provider = services.BuildServiceProvider();
         var factory = new MigrationEngineFactory(provider);
 
