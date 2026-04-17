@@ -88,6 +88,17 @@ public class DdlTranslator
                 var pgDefault = DataTypeMapper.MapDefaultExpression(col.DefaultExpression);
                 if (pgDefault != null)
                 {
+                    // BIT defaults (0/1) must become boolean literals for PG
+                    if (col.DataType.Equals("bit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        pgDefault = pgDefault switch
+                        {
+                            "1" => "true",
+                            "0" => "false",
+                            _ => pgDefault
+                        };
+                    }
+
                     colDef.Append($" DEFAULT {pgDefault}");
                 }
             }
