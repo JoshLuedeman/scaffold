@@ -63,7 +63,7 @@ public class SqlServerMigrator : IMigrationEngine
             if (plan.PreMigrationScripts.Count > 0)
             {
                 progress?.Report(new MigrationProgress { Phase = "PreScripts", PercentComplete = 0, Message = "Running pre-migration scripts..." });
-                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PreMigrationScripts, progress, ct);
+                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PreMigrationScripts, progress, ct, plan.ScriptTimeoutSeconds);
             }
 
             // Step 3: Data migration via SqlBulkCopy
@@ -79,13 +79,14 @@ public class SqlServerMigrator : IMigrationEngine
                 plan.ExistingTargetConnectionString!,
                 plan.IncludedObjects,
                 progress,
-                ct);
+                ct,
+                plan.BulkCopyTimeoutSeconds);
 
             // Step 4: Execute post-migration scripts on target
             if (plan.PostMigrationScripts.Count > 0)
             {
                 progress?.Report(new MigrationProgress { Phase = "PostScripts", PercentComplete = 0, Message = "Running post-migration scripts..." });
-                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PostMigrationScripts, progress, ct);
+                await _scriptExecutor.ExecuteScriptsAsync(plan.ExistingTargetConnectionString!, plan.PostMigrationScripts, progress, ct, plan.ScriptTimeoutSeconds);
             }
 
             result.RowsMigrated = rowsMigrated;

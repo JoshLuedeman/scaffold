@@ -23,17 +23,19 @@ public class ScriptExecutorIntegrationTests
         var bulkCopier = new Mock<BulkDataCopier>();
         bulkCopier.Setup(b => b.CopyDataAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .ReturnsAsync(100L)
             .Callback(() => callOrder.Add("data"));
 
         var scriptExecutor = new Mock<ScriptExecutor>();
         scriptExecutor.Setup(s => s.ExecuteScriptsAsync(
                 It.IsAny<string>(), It.IsAny<IReadOnlyList<MigrationScript>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .Returns(Task.CompletedTask)
-            .Callback<string, IReadOnlyList<MigrationScript>, IProgress<MigrationProgress>?, CancellationToken>(
-                (_, scripts, _, _) => callOrder.Add(scripts[0].Phase == MigrationScriptPhase.Pre ? "pre-scripts" : "post-scripts"));
+            .Callback<string, IReadOnlyList<MigrationScript>, IProgress<MigrationProgress>?, CancellationToken, int?>(
+                (_, scripts, _, _, _) => callOrder.Add(scripts[0].Phase == MigrationScriptPhase.Pre ? "pre-scripts" : "post-scripts"));
 
         var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkCopier.Object, scriptExecutor.Object);
 
@@ -66,7 +68,8 @@ public class ScriptExecutorIntegrationTests
         var bulkCopier = new Mock<BulkDataCopier>();
         bulkCopier.Setup(b => b.CopyDataAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .ReturnsAsync(50L);
 
         var scriptExecutor = new Mock<ScriptExecutor>();
@@ -88,7 +91,8 @@ public class ScriptExecutorIntegrationTests
         Assert.Equal(50, result.RowsMigrated);
         scriptExecutor.Verify(s => s.ExecuteScriptsAsync(
             It.IsAny<string>(), It.IsAny<IReadOnlyList<MigrationScript>>(),
-            It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+            It.IsAny<int?>()), Times.Never);
     }
 
     [Fact]
@@ -103,7 +107,8 @@ public class ScriptExecutorIntegrationTests
         var scriptExecutor = new Mock<ScriptExecutor>();
         scriptExecutor.Setup(s => s.ExecuteScriptsAsync(
                 It.IsAny<string>(), It.IsAny<IReadOnlyList<MigrationScript>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .ThrowsAsync(new InvalidOperationException("Script execution failed"));
 
         var bulkCopier = new Mock<BulkDataCopier>();

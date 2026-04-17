@@ -1,4 +1,5 @@
 using Moq;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 using Scaffold.Migration.SqlServer;
@@ -44,7 +45,8 @@ public class SqlServerMigratorTests
         bulkDataCopier
             .Setup(b => b.CopyDataAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .Callback(() => callOrder.Add("data"))
             .ReturnsAsync(42L);
 
@@ -73,7 +75,8 @@ public class SqlServerMigratorTests
         bulkDataCopier
             .Setup(b => b.CopyDataAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .ReturnsAsync(0L);
 
         var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object);
@@ -103,7 +106,8 @@ public class SqlServerMigratorTests
         bulkDataCopier
             .Setup(b => b.CopyDataAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
             .ReturnsAsync(100L);
 
         var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object);
@@ -327,6 +331,115 @@ public class SqlServerMigratorTests
             File.Delete(tempFile);
 
         Assert.False(File.Exists(tempFile));
+    }
+
+    #endregion
+
+    #region Timeout passthrough
+
+    [Fact]
+    public async Task ExecuteCutoverAsync_PassesBulkCopyTimeoutFromPlan()
+    {
+        var schemaDeployer = new Mock<SchemaDeployer>();
+        var bulkDataCopier = new Mock<BulkDataCopier>();
+
+        schemaDeployer
+            .Setup(s => s.DeploySchemaAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        int? capturedTimeout = null;
+        bulkDataCopier
+            .Setup(b => b.CopyDataAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
+            .Callback<string, string, IReadOnlyList<string>, IProgress<MigrationProgress>?, CancellationToken, int?>(
+                (_, _, _, _, _, timeout) => capturedTimeout = timeout)
+            .ReturnsAsync(0L);
+
+        var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object);
+        var plan = CreateValidPlan("dbo.Users");
+        plan.BulkCopyTimeoutSeconds = 1200;
+
+        await migrator.ExecuteCutoverAsync(plan);
+
+        Assert.Equal(1200, capturedTimeout);
+    }
+
+    [Fact]
+    public async Task ExecuteCutoverAsync_PassesNullTimeoutWhenNotSet()
+    {
+        var schemaDeployer = new Mock<SchemaDeployer>();
+        var bulkDataCopier = new Mock<BulkDataCopier>();
+
+        schemaDeployer
+            .Setup(s => s.DeploySchemaAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        int? capturedTimeout = -1; // sentinel to detect change
+        bulkDataCopier
+            .Setup(b => b.CopyDataAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
+            .Callback<string, string, IReadOnlyList<string>, IProgress<MigrationProgress>?, CancellationToken, int?>(
+                (_, _, _, _, _, timeout) => capturedTimeout = timeout)
+            .ReturnsAsync(0L);
+
+        var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object);
+        var plan = CreateValidPlan("dbo.Users");
+        // BulkCopyTimeoutSeconds is null by default
+
+        await migrator.ExecuteCutoverAsync(plan);
+
+        Assert.Null(capturedTimeout);
+    }
+
+    [Fact]
+    public async Task ExecuteCutoverAsync_PassesScriptTimeoutFromPlan()
+    {
+        var schemaDeployer = new Mock<SchemaDeployer>();
+        var bulkDataCopier = new Mock<BulkDataCopier>();
+        var scriptExecutor = new Mock<ScriptExecutor>();
+
+        schemaDeployer
+            .Setup(s => s.DeploySchemaAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        bulkDataCopier
+            .Setup(b => b.CopyDataAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
+            .ReturnsAsync(0L);
+
+        int? capturedTimeout = null;
+        scriptExecutor
+            .Setup(s => s.ExecuteScriptsAsync(
+                It.IsAny<string>(), It.IsAny<IReadOnlyList<MigrationScript>>(),
+                It.IsAny<IProgress<MigrationProgress>?>(), It.IsAny<CancellationToken>(),
+                It.IsAny<int?>()))
+            .Callback<string, IReadOnlyList<MigrationScript>, IProgress<MigrationProgress>?, CancellationToken, int?>(
+                (_, _, _, _, timeout) => capturedTimeout = timeout)
+            .Returns(Task.CompletedTask);
+
+        var migrator = new SqlServerMigrator(schemaDeployer.Object, bulkDataCopier.Object, scriptExecutor.Object);
+        var plan = CreateValidPlan("dbo.Users");
+        plan.ScriptTimeoutSeconds = 900;
+        plan.PreMigrationScripts =
+        [
+            new MigrationScript { ScriptId = "pre1", Label = "Pre", Phase = MigrationScriptPhase.Pre, SqlContent = "SELECT 1", IsEnabled = true, Order = 0 }
+        ];
+
+        await migrator.ExecuteCutoverAsync(plan);
+
+        Assert.Equal(900, capturedTimeout);
     }
 
     #endregion

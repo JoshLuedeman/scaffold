@@ -10,6 +10,7 @@ namespace Scaffold.Migration.SqlServer;
 /// </summary>
 public class ScriptExecutor
 {
+    private const int DefaultScriptTimeoutSeconds = 300;
     /// <summary>
     /// Executes a list of migration scripts in order against the target connection.
     /// Scripts must have SqlContent populated before calling this method.
@@ -18,13 +19,15 @@ public class ScriptExecutor
         string connectionString,
         IReadOnlyList<MigrationScript> scripts,
         IProgress<MigrationProgress>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? scriptTimeout = null)
     {
         var enabledScripts = scripts.Where(s => s.IsEnabled).OrderBy(s => s.Order).ToList();
 
         if (enabledScripts.Count == 0)
             return;
 
+        var effectiveTimeout = ClampTimeout(scriptTimeout, DefaultScriptTimeoutSeconds);
         var phase = enabledScripts[0].Phase == MigrationScriptPhase.Pre ? "PreScripts" : "PostScripts";
 
         await using var connection = new SqlConnection(connectionString);
@@ -53,7 +56,7 @@ public class ScriptExecutor
             }
 
             await using var cmd = new SqlCommand(script.SqlContent, connection);
-            cmd.CommandTimeout = 300;
+            cmd.CommandTimeout = effectiveTimeout;
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -64,4 +67,10 @@ public class ScriptExecutor
             Message = $"Completed {enabledScripts.Count} {(phase == "PreScripts" ? "pre" : "post")}-migration scripts."
         });
     }
+
+    /// <summary>
+    /// Clamps a timeout value to the range [min, max], using defaultValue when value is null.
+    /// </summary>
+    internal static int ClampTimeout(int? value, int defaultValue, int min = 30, int max = 3600)
+        => Math.Clamp(value ?? defaultValue, min, max);
 }

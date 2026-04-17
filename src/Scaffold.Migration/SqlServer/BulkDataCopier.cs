@@ -22,7 +22,8 @@ public class BulkDataCopier
         string targetConnectionString,
         IReadOnlyList<string> tableNames,
         IProgress<MigrationProgress>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? bulkCopyTimeout = null)
     {
         var orderedTables = tableNames.Count > 0
             ? await GetOrderedTablesAsync(sourceConnectionString, tableNames, ct)
@@ -39,6 +40,7 @@ public class BulkDataCopier
             return 0;
         }
 
+        var effectiveTimeout = ClampTimeout(bulkCopyTimeout, BulkCopyTimeoutSeconds);
         long totalRowsCopied = 0;
 
         await using var targetConn = new SqlConnection(targetConnectionString);
@@ -66,7 +68,7 @@ public class BulkDataCopier
                 });
 
                 var rowsCopied = await CopyTableAsync(
-                    sourceConnectionString, targetConn, table, totalRowsCopied, orderedTables.Count, i, progress, ct);
+                    sourceConnectionString, targetConn, table, totalRowsCopied, orderedTables.Count, i, effectiveTimeout, progress, ct);
 
                 totalRowsCopied += rowsCopied;
             }
@@ -141,6 +143,7 @@ public class BulkDataCopier
         long runningTotal,
         int tableCount,
         int tableIndex,
+        int bulkCopyTimeout,
         IProgress<MigrationProgress>? progress,
         CancellationToken ct)
     {
@@ -156,7 +159,7 @@ public class BulkDataCopier
         {
             DestinationTableName = QuoteName(tableName),
             BatchSize = BatchSize,
-            BulkCopyTimeout = BulkCopyTimeoutSeconds,
+            BulkCopyTimeout = bulkCopyTimeout,
             NotifyAfter = NotifyAfterRows,
             EnableStreaming = true
         };
@@ -249,4 +252,10 @@ public class BulkDataCopier
 
         return ordered;
     }
+
+    /// <summary>
+    /// Clamps a timeout value to the range [min, max], using defaultValue when value is null.
+    /// </summary>
+    internal static int ClampTimeout(int? value, int defaultValue, int min = 30, int max = 3600)
+        => Math.Clamp(value ?? defaultValue, min, max);
 }

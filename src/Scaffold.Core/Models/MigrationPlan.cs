@@ -33,6 +33,12 @@ public class MigrationPlan : AuditableEntity
     public string? ExistingTargetConnectionString { get; set; }
     public string? SourceConnectionString { get; set; }
 
+    /// <summary>Timeout in seconds for SqlBulkCopy operations. Default: 600. Clamped to [30, 3600].</summary>
+    public int? BulkCopyTimeoutSeconds { get; set; }
+
+    /// <summary>Timeout in seconds for pre/post migration script execution. Default: 300. Clamped to [30, 3600].</summary>
+    public int? ScriptTimeoutSeconds { get; set; }
+
     public MigrationStatus Status { get; set; } = MigrationStatus.Pending;
     public Guid? MigrationId { get; set; }
 
