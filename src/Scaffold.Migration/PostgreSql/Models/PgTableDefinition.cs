@@ -45,6 +45,8 @@ public class PgColumnDefinition
     public string? Collation { get; set; }
     /// <summary>For enum/composite/domain types, the UDT name.</summary>
     public string? UdtName { get; set; }
+    /// <summary>Schema of the UDT (for USER-DEFINED types).</summary>
+    public string? UdtSchema { get; set; }
 }
 
 public class PgPrimaryKeyDefinition

@@ -106,7 +106,7 @@ public class PostgreSqlMigrator : IMigrationEngine
                 return result;
             }
 
-            // Step 3: Generate and deploy DDL on target
+            // Step 3: Generate and deploy DDL on target (wrapped in transaction)
             progress?.Report(new MigrationProgress
             {
                 Phase = "SchemaDeployment",
@@ -120,12 +120,22 @@ public class PostgreSqlMigrator : IMigrationEngine
             {
                 await using var targetConn = new NpgsqlConnection(plan.ExistingTargetConnectionString);
                 await targetConn.OpenAsync(ct);
-                foreach (var ddl in ddlStatements)
+                await using var transaction = await targetConn.BeginTransactionAsync(ct);
+                try
                 {
-                    ct.ThrowIfCancellationRequested();
-                    await using var cmd = new NpgsqlCommand(ddl, targetConn);
-                    cmd.CommandTimeout = plan.ScriptTimeoutSeconds > 0 ? plan.ScriptTimeoutSeconds.Value : 300;
-                    await cmd.ExecuteNonQueryAsync(ct);
+                    foreach (var ddl in ddlStatements)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        await using var cmd = new NpgsqlCommand(ddl, targetConn, transaction);
+                        cmd.CommandTimeout = plan.ScriptTimeoutSeconds > 0 ? plan.ScriptTimeoutSeconds.Value : 300;
+                        await cmd.ExecuteNonQueryAsync(ct);
+                    }
+                    await transaction.CommitAsync(ct);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(ct);
+                    throw;
                 }
             }
 
@@ -277,7 +287,7 @@ public class PostgreSqlMigrator : IMigrationEngine
                     .Select(w => w.Message)));
         }
 
-        // Step 3: Deploy DDL on target
+        // Step 3: Deploy DDL on target (wrapped in transaction)
         progress?.Report(new MigrationProgress
         {
             Phase = "SchemaDeployment",
@@ -291,12 +301,22 @@ public class PostgreSqlMigrator : IMigrationEngine
         {
             await using var targetConn = new NpgsqlConnection(_targetConnectionString);
             await targetConn.OpenAsync(ct);
-            foreach (var ddl in ddlStatements)
+            await using var transaction = await targetConn.BeginTransactionAsync(ct);
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                await using var cmd = new NpgsqlCommand(ddl, targetConn);
-                cmd.CommandTimeout = plan.ScriptTimeoutSeconds > 0 ? plan.ScriptTimeoutSeconds.Value : 300;
-                await cmd.ExecuteNonQueryAsync(ct);
+                foreach (var ddl in ddlStatements)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    await using var cmd = new NpgsqlCommand(ddl, targetConn, transaction);
+                    cmd.CommandTimeout = plan.ScriptTimeoutSeconds > 0 ? plan.ScriptTimeoutSeconds.Value : 300;
+                    await cmd.ExecuteNonQueryAsync(ct);
+                }
+                await transaction.CommitAsync(ct);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
             }
         }
 
@@ -355,6 +375,10 @@ public class PostgreSqlMigrator : IMigrationEngine
 
         var result = await _syncEngine.CompleteCutoverAsync(
             _activePlan?.ProjectId ?? Guid.Empty, ct);
+
+        // Dispose the sync engine after cutover
+        await _syncEngine.DisposeAsync();
+        _syncEngine = null;
 
         // Run post-migration scripts if configured
         if (_activePlan?.PostMigrationScripts.Count > 0)

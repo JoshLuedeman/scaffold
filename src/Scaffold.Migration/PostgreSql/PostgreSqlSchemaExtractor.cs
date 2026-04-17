@@ -207,7 +207,7 @@ public class PostgreSqlSchemaExtractor
                    c.character_maximum_length, c.numeric_precision, c.numeric_scale,
                    c.is_nullable, c.column_default, c.ordinal_position,
                    c.is_identity, c.identity_generation, c.is_generated, c.generation_expression,
-                   c.collation_name
+                   c.collation_name, c.udt_schema
             FROM information_schema.columns c
             JOIN information_schema.tables t
               ON c.table_schema = t.table_schema AND c.table_name = t.table_name
@@ -253,12 +253,13 @@ public class PostgreSqlSchemaExtractor
         var maxLength = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5);
         var precision = reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6);
         var scale = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7);
+        var udtSchema = reader.IsDBNull(16) ? null : reader.GetString(16);
 
         return new PgColumnDefinition
         {
             Name = reader.GetString(2),
             DataType = dataType,
-            FullType = BuildFullType(dataType, udtName, maxLength, precision, scale),
+            FullType = BuildFullType(dataType, udtName, maxLength, precision, scale, udtSchema),
             MaxLength = maxLength,
             Precision = precision,
             Scale = scale,
@@ -270,19 +271,27 @@ public class PostgreSqlSchemaExtractor
             IsGenerated = reader.GetString(13) != "NEVER",
             GenerationExpression = reader.IsDBNull(14) ? null : reader.GetString(14),
             Collation = reader.IsDBNull(15) ? null : reader.GetString(15),
-            UdtName = udtName
+            UdtName = udtName,
+            UdtSchema = udtSchema
         };
     }
 
     /// <summary>
     /// Builds the full type string with modifiers (e.g., "character varying(255)").
+    /// Schema-qualifies USER-DEFINED types when they are outside the "public" schema.
     /// </summary>
     internal static string BuildFullType(
-        string dataType, string? udtName, int? maxLength, int? precision, int? scale)
+        string dataType, string? udtName, int? maxLength, int? precision, int? scale,
+        string? udtSchema = null)
     {
-        // USER-DEFINED types (enums, composites, domains) — use the UDT name
+        // USER-DEFINED types (enums, composites, domains) — use the UDT name, schema-qualified
         if (dataType.Equals("USER-DEFINED", StringComparison.OrdinalIgnoreCase) && udtName != null)
-            return udtName;
+        {
+            var effectiveSchema = udtSchema ?? "public";
+            if (effectiveSchema.Equals("public", StringComparison.OrdinalIgnoreCase))
+                return PgIdentifierHelper.QuoteIdentifier(udtName);
+            return $"{PgIdentifierHelper.QuoteIdentifier(effectiveSchema)}.{PgIdentifierHelper.QuoteIdentifier(udtName)}";
+        }
 
         // ARRAY types — use UDT name (e.g., "_int4" → "integer[]")
         if (dataType.Equals("ARRAY", StringComparison.OrdinalIgnoreCase) && udtName != null)
@@ -345,21 +354,22 @@ public class PostgreSqlSchemaExtractor
         Dictionary<string, PgTableDefinition> tableMap,
         CancellationToken ct)
     {
+        // Use pg_constraint with unnest to get positionally-correct column pairs,
+        // avoiding the Cartesian product from information_schema joins on composite FKs.
         const string sql = """
-            SELECT tc.table_schema, tc.table_name, tc.constraint_name,
-                   kcu.column_name, ccu.table_schema AS ref_schema, ccu.table_name AS ref_table,
-                   ccu.column_name AS ref_column,
-                   rc.delete_rule, rc.update_rule
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-              ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema
-            JOIN information_schema.referential_constraints rc
-              ON tc.constraint_name = rc.constraint_name AND tc.table_schema = rc.constraint_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
-            ORDER BY tc.table_schema, tc.table_name, kcu.ordinal_position
+            SELECT n.nspname AS table_schema, c.relname AS table_name, con.conname AS constraint_name,
+                   a_src.attname AS column_name, rn.nspname AS ref_schema, rc.relname AS ref_table,
+                   a_ref.attname AS ref_column, con.confdeltype, con.confupdtype
+            FROM pg_constraint con
+            JOIN pg_class c ON con.conrelid = c.oid
+            JOIN pg_namespace n ON c.relnamespace = n.oid
+            JOIN pg_class rc ON con.confrelid = rc.oid
+            JOIN pg_namespace rn ON rc.relnamespace = rn.oid
+            CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS u(src_attnum, ref_attnum, ord)
+            JOIN pg_attribute a_src ON a_src.attrelid = con.conrelid AND a_src.attnum = u.src_attnum
+            JOIN pg_attribute a_ref ON a_ref.attrelid = con.confrelid AND a_ref.attnum = u.ref_attnum
+            WHERE con.contype = 'f' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY n.nspname, c.relname, con.conname, u.ord
             """;
 
         var fkMap = new Dictionary<string, PgForeignKeyDefinition>(StringComparer.OrdinalIgnoreCase);
@@ -382,22 +392,31 @@ public class PostgreSqlSchemaExtractor
                     Name = fkName,
                     ReferencedSchema = reader.GetString(4),
                     ReferencedTable = reader.GetString(5),
-                    DeleteAction = reader.GetString(7),
-                    UpdateAction = reader.GetString(8)
+                    DeleteAction = MapFkAction(reader.GetChar(7)),
+                    UpdateAction = MapFkAction(reader.GetChar(8))
                 };
                 fkMap[fkKey] = fk;
                 table.ForeignKeys.Add(fk);
             }
 
-            var column = reader.GetString(3);
-            if (!fk.Columns.Contains(column, StringComparer.OrdinalIgnoreCase))
-                fk.Columns.Add(column);
-
-            var refColumn = reader.GetString(6);
-            if (!fk.ReferencedColumns.Contains(refColumn, StringComparer.OrdinalIgnoreCase))
-                fk.ReferencedColumns.Add(refColumn);
+            // Each row is one (source_col, ref_col) pair in ordinal position — no dedup needed
+            fk.Columns.Add(reader.GetString(3));
+            fk.ReferencedColumns.Add(reader.GetString(6));
         }
     }
+
+    /// <summary>
+    /// Maps pg_constraint FK action characters to SQL standard action strings.
+    /// </summary>
+    internal static string MapFkAction(char action) => action switch
+    {
+        'a' => "NO ACTION",
+        'r' => "RESTRICT",
+        'c' => "CASCADE",
+        'n' => "SET NULL",
+        'd' => "SET DEFAULT",
+        _ => "NO ACTION"
+    };
 
     internal static async Task ReadUniqueConstraintsAsync(
         NpgsqlConnection connection,

@@ -106,10 +106,24 @@ public class PostgreSqlSchemaExtractorTests
     }
 
     [Fact]
-    public void BuildFullType_UserDefinedEnum_ReturnsUdtName()
+    public void BuildFullType_UserDefinedEnum_PublicSchema_ReturnsQuotedUdtName()
+    {
+        var result = PostgreSqlSchemaExtractor.BuildFullType("USER-DEFINED", "mood_type", null, null, null, "public");
+        Assert.Equal("\"mood_type\"", result);
+    }
+
+    [Fact]
+    public void BuildFullType_UserDefinedEnum_NullSchema_DefaultsToPublic()
     {
         var result = PostgreSqlSchemaExtractor.BuildFullType("USER-DEFINED", "mood_type", null, null, null);
-        Assert.Equal("mood_type", result);
+        Assert.Equal("\"mood_type\"", result);
+    }
+
+    [Fact]
+    public void BuildFullType_UserDefinedEnum_CustomSchema_SchemaQualified()
+    {
+        var result = PostgreSqlSchemaExtractor.BuildFullType("USER-DEFINED", "mood_type", null, null, null, "custom");
+        Assert.Equal("\"custom\".\"mood_type\"", result);
     }
 
     [Fact]
@@ -131,6 +145,22 @@ public class PostgreSqlSchemaExtractorTests
     {
         var result = PostgreSqlSchemaExtractor.BuildFullType("bit varying", null, 64, null, null);
         Assert.Equal("bit varying(64)", result);
+    }
+
+    #endregion
+
+    #region MapFkAction
+
+    [Theory]
+    [InlineData('a', "NO ACTION")]
+    [InlineData('r', "RESTRICT")]
+    [InlineData('c', "CASCADE")]
+    [InlineData('n', "SET NULL")]
+    [InlineData('d', "SET DEFAULT")]
+    [InlineData('x', "NO ACTION")] // unknown defaults to NO ACTION
+    public void MapFkAction_VariousChars_MapsCorrectly(char action, string expected)
+    {
+        Assert.Equal(expected, PostgreSqlSchemaExtractor.MapFkAction(action));
     }
 
     #endregion

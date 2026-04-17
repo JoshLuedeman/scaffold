@@ -122,12 +122,13 @@ public class PostgreSqlBulkCopier
             ct.ThrowIfCancellationRequested();
             var quotedTable = PgIdentifierHelper.QuotePgName(tableName);
             var quotedCol = PgIdentifierHelper.QuoteIdentifier(columnName);
-            var quotedSeq = PgIdentifierHelper.QuotePgName(seqName);
 
-            // setval to max value, or 1 if table is empty
+            // Use parameterized query with regclass cast for safe sequence resolution.
+            // is_called is conditional: false when table is empty (so next nextval returns 1).
             await using var setCmd = new NpgsqlCommand(
-                $"SELECT setval({quotedSeq}::text::regclass, COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}), 1), true)",
+                $"SELECT setval(@seqName::regclass, COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}), 1), COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}) IS NOT NULL, false))",
                 conn);
+            setCmd.Parameters.AddWithValue("seqName", seqName);
             await setCmd.ExecuteNonQueryAsync(ct);
         }
     }
@@ -342,13 +343,16 @@ public class PostgreSqlBulkCopier
 
     /// <summary>
     /// Builds the SQL command to reset a sequence to the max value of its owning column.
+    /// Uses single-quoted literal with regclass cast for safe sequence resolution.
+    /// The is_called parameter is conditional: false when the table is empty so
+    /// the next nextval() returns 1 (not 2).
     /// Exposed for testing.
     /// </summary>
     internal static string BuildResetSequenceSql(string seqName, string tableName, string columnName)
     {
         var quotedTable = PgIdentifierHelper.QuotePgName(tableName);
         var quotedCol = PgIdentifierHelper.QuoteIdentifier(columnName);
-        var quotedSeq = PgIdentifierHelper.QuotePgName(seqName);
-        return $"SELECT setval({quotedSeq}::text::regclass, COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}), 1), true)";
+        var escapedSeq = seqName.Replace("'", "''");
+        return $"SELECT setval('{escapedSeq}'::regclass, COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}), 1), COALESCE((SELECT MAX({quotedCol}) FROM {quotedTable}) IS NOT NULL, false))";
     }
 }

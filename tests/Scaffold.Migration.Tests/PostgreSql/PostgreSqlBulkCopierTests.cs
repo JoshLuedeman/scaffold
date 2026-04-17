@@ -211,7 +211,7 @@ public class PostgreSqlBulkCopierTests
             "id");
 
         Assert.Equal(
-            "SELECT setval(\"public\".\"users_id_seq\"::text::regclass, COALESCE((SELECT MAX(\"id\") FROM \"public\".\"users\"), 1), true)",
+            "SELECT setval('public.users_id_seq'::regclass, COALESCE((SELECT MAX(\"id\") FROM \"public\".\"users\"), 1), COALESCE((SELECT MAX(\"id\") FROM \"public\".\"users\") IS NOT NULL, false))",
             result);
     }
 
@@ -224,7 +224,7 @@ public class PostgreSqlBulkCopierTests
             "order_id");
 
         Assert.Equal(
-            "SELECT setval(\"sales\".\"orders_order_id_seq\"::text::regclass, COALESCE((SELECT MAX(\"order_id\") FROM \"sales\".\"orders\"), 1), true)",
+            "SELECT setval('sales.orders_order_id_seq'::regclass, COALESCE((SELECT MAX(\"order_id\") FROM \"sales\".\"orders\"), 1), COALESCE((SELECT MAX(\"order_id\") FROM \"sales\".\"orders\") IS NOT NULL, false))",
             result);
     }
 
@@ -238,7 +238,7 @@ public class PostgreSqlBulkCopierTests
 
         Assert.Contains("\"my\"\"col\"", result);
         Assert.StartsWith("SELECT setval(", result);
-        Assert.EndsWith(", true)", result);
+        Assert.Contains("IS NOT NULL, false)", result);
     }
 
     [Fact]
@@ -262,7 +262,32 @@ public class PostgreSqlBulkCopierTests
             "col1");
 
         // Must cast to regclass for setval
-        Assert.Contains("::text::regclass", result);
+        Assert.Contains("::regclass", result);
+    }
+
+    [Fact]
+    public void BuildResetSequenceSql_EmptyTable_IsCalledFalse()
+    {
+        var result = PostgreSqlBulkCopier.BuildResetSequenceSql(
+            "public.users_id_seq",
+            "public.users",
+            "id");
+
+        // When table is empty, MAX returns NULL, so IS NOT NULL → false, making is_called=false
+        // This ensures next nextval() returns 1, not 2
+        Assert.Contains("COALESCE((SELECT MAX(\"id\") FROM \"public\".\"users\") IS NOT NULL, false)", result);
+    }
+
+    [Fact]
+    public void BuildResetSequenceSql_SeqNameWithSingleQuote_Escaped()
+    {
+        var result = PostgreSqlBulkCopier.BuildResetSequenceSql(
+            "public.it's_seq",
+            "public.tbl1",
+            "col1");
+
+        // Single quotes in sequence name must be escaped
+        Assert.Contains("'public.it''s_seq'::regclass", result);
     }
 
     #endregion

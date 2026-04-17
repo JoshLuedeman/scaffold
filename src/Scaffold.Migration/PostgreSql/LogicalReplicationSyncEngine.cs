@@ -10,10 +10,10 @@ namespace Scaffold.Migration.PostgreSql;
 /// <summary>
 /// Uses PostgreSQL logical replication (pgoutput protocol) to perform
 /// continuous incremental sync from source PG to target Azure PG.
-/// Flow: validate wal_level → create publication → initial data load →
-/// create replication slot → stream changes → apply to target.
+/// Flow: validate wal_level → create publication → create replication slot →
+/// initial data load → stream changes → apply to target.
 /// </summary>
-public class LogicalReplicationSyncEngine
+public class LogicalReplicationSyncEngine : IAsyncDisposable
 {
     private readonly PostgreSqlBulkCopier _bulkCopier;
     private readonly IProgress<MigrationProgress>? _progress;
@@ -29,6 +29,7 @@ public class LogicalReplicationSyncEngine
     private CancellationTokenSource? _syncCts;
     private Task? _replicationTask;
     private LogicalReplicationConnection? _replicationConnection;
+    private PgOutputReplicationSlot? _preCreatedSlot;
 
     public LogicalReplicationSyncEngine(
         PostgreSqlBulkCopier bulkCopier,
@@ -46,7 +47,7 @@ public class LogicalReplicationSyncEngine
     public bool IsRunning => _replicationTask is { IsCompleted: false };
 
     /// <summary>
-    /// Validates prerequisites, performs initial load, creates publication + slot, starts streaming.
+    /// Validates prerequisites, creates publication + slot, performs initial load, starts streaming.
     /// </summary>
     public async Task StartAsync(
         string sourceConnectionString,
@@ -75,23 +76,51 @@ public class LogicalReplicationSyncEngine
         // Step 3: Create publication for specified tables
         await CreatePublicationAsync(ct);
 
-        // Step 4: Initial data load via bulk copier (snapshot-consistent)
-        _progress?.Report(new MigrationProgress
+        try
         {
-            Phase = "InitialLoad",
-            PercentComplete = 0,
-            Message = "Performing initial data load..."
-        });
+            // Step 4: Create replication slot (captures consistent snapshot LSN)
+            _replicationConnection = new LogicalReplicationConnection(_sourceConnectionString);
+            await _replicationConnection.Open(ct);
 
-        _totalRowsSynced = await _bulkCopier.CopyDataAsync(
-            _sourceConnectionString, _targetConnectionString,
-            _tableNames, _progress, ct: ct);
+            _preCreatedSlot = await _replicationConnection.CreatePgOutputReplicationSlot(
+                _slotName, slotSnapshotInitMode: LogicalSlotSnapshotInitMode.Export, cancellationToken: ct);
 
-        await _bulkCopier.ResetSequencesAsync(_targetConnectionString, ct);
+            // Step 5: Initial data load via bulk copier (snapshot-consistent)
+            _progress?.Report(new MigrationProgress
+            {
+                Phase = "InitialLoad",
+                PercentComplete = 0,
+                Message = "Performing initial data load..."
+            });
 
-        // Step 5: Create replication slot and start streaming
-        _syncCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _replicationTask = StreamChangesAsync(_syncCts.Token);
+            _totalRowsSynced = await _bulkCopier.CopyDataAsync(
+                _sourceConnectionString, _targetConnectionString,
+                _tableNames, _progress, ct: ct);
+
+            await _bulkCopier.ResetSequencesAsync(_targetConnectionString, ct);
+
+            // Step 6: Start streaming from the pre-created slot
+            _syncCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _replicationTask = StreamChangesAsync(_syncCts.Token);
+        }
+        catch
+        {
+            // Cleanup on failure: dispose CTS, drop slot/publication
+            if (_syncCts is not null)
+            {
+                _syncCts.Dispose();
+                _syncCts = null;
+            }
+
+            if (_replicationConnection is not null)
+            {
+                await _replicationConnection.DisposeAsync();
+                _replicationConnection = null;
+            }
+
+            await CleanupReplicationResourcesAsync(CancellationToken.None);
+            throw;
+        }
     }
 
     /// <summary>
@@ -206,37 +235,40 @@ public class LogicalReplicationSyncEngine
     }
 
     /// <summary>
-    /// Streams changes from the replication slot and applies them to target.
+    /// Streams changes from the pre-created replication slot and applies them to target.
+    /// Uses a single target connection for all apply operations.
     /// </summary>
     private async Task StreamChangesAsync(CancellationToken ct)
     {
+        NpgsqlConnection? targetConn = null;
         try
         {
-            _replicationConnection = new LogicalReplicationConnection(_sourceConnectionString);
-            await _replicationConnection.Open(ct);
+            // Open a single connection to the target for all apply operations
+            targetConn = new NpgsqlConnection(_targetConnectionString);
+            await targetConn.OpenAsync(ct);
 
-            // Create replication slot (creates a consistent snapshot point)
-            var slot = await _replicationConnection.CreatePgOutputReplicationSlot(
-                _slotName, slotSnapshotInitMode: LogicalSlotSnapshotInitMode.Export, cancellationToken: ct);
+            // Use the pre-created replication slot (already created in StartAsync)
+            var slot = _preCreatedSlot
+                ?? throw new InvalidOperationException("Replication slot was not pre-created. Call StartAsync first.");
 
             var options = new PgOutputReplicationOptions(_publicationName, protocolVersion: 1);
 
-            await foreach (var message in _replicationConnection.StartReplication(slot, options, ct))
+            await foreach (var message in _replicationConnection!.StartReplication(slot, options, ct))
             {
                 ct.ThrowIfCancellationRequested();
 
                 if (_retryPolicy is not null)
                 {
                     await _retryPolicy.ExecuteAsync(
-                        async token => await ApplyReplicationMessageAsync(message, token), ct);
+                        async token => await ApplyReplicationMessageAsync(message, targetConn, token), ct);
                 }
                 else
                 {
-                    await ApplyReplicationMessageAsync(message, ct);
+                    await ApplyReplicationMessageAsync(message, targetConn, ct);
                 }
 
                 // Acknowledge the message
-                _replicationConnection.SetReplicationStatus(message.WalEnd);
+                _replicationConnection!.SetReplicationStatus(message.WalEnd);
             }
         }
         catch (OperationCanceledException)
@@ -245,6 +277,11 @@ public class LogicalReplicationSyncEngine
         }
         finally
         {
+            if (targetConn is not null)
+            {
+                await targetConn.DisposeAsync();
+            }
+
             if (_replicationConnection is not null)
             {
                 await _replicationConnection.DisposeAsync();
@@ -258,27 +295,28 @@ public class LogicalReplicationSyncEngine
     /// </summary>
     internal virtual async Task ApplyReplicationMessageAsync(
         PgOutputReplicationMessage message,
+        NpgsqlConnection targetConn,
         CancellationToken ct)
     {
         switch (message)
         {
             case InsertMessage insert:
-                await ApplyInsertAsync(insert, ct);
+                await ApplyInsertAsync(insert, targetConn, ct);
                 break;
             case UpdateMessage update:
-                await ApplyUpdateAsync(update, ct);
+                await ApplyUpdateAsync(update, targetConn, ct);
                 break;
             case KeyDeleteMessage keyDelete:
-                await ApplyKeyDeleteAsync(keyDelete, ct);
+                await ApplyKeyDeleteAsync(keyDelete, targetConn, ct);
                 break;
             case FullDeleteMessage fullDelete:
-                await ApplyFullDeleteAsync(fullDelete, ct);
+                await ApplyFullDeleteAsync(fullDelete, targetConn, ct);
                 break;
             // BeginMessage, CommitMessage, RelationMessage — no action needed for target
         }
     }
 
-    private async Task ApplyInsertAsync(InsertMessage insert, CancellationToken ct)
+    private async Task ApplyInsertAsync(InsertMessage insert, NpgsqlConnection targetConn, CancellationToken ct)
     {
         var tableName = $"{insert.Relation.Namespace}.{insert.Relation.RelationName}";
         var pgTable = PgIdentifierHelper.QuotePgName(tableName);
@@ -288,10 +326,8 @@ public class LogicalReplicationSyncEngine
         var paramNames = string.Join(", ",
             columns.Select((_, i) => $"@p{i}"));
 
-        await using var conn = new NpgsqlConnection(_targetConnectionString);
-        await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            $"INSERT INTO {pgTable} ({colNames}) VALUES ({paramNames}) ON CONFLICT DO NOTHING", conn);
+            $"INSERT INTO {pgTable} ({colNames}) VALUES ({paramNames}) ON CONFLICT DO NOTHING", targetConn);
 
         int i = 0;
         await foreach (var value in insert.NewRow)
@@ -305,7 +341,7 @@ public class LogicalReplicationSyncEngine
         Interlocked.Increment(ref _totalRowsSynced);
     }
 
-    private async Task ApplyUpdateAsync(UpdateMessage update, CancellationToken ct)
+    private async Task ApplyUpdateAsync(UpdateMessage update, NpgsqlConnection targetConn, CancellationToken ct)
     {
         var tableName = $"{update.Relation.Namespace}.{update.Relation.RelationName}";
         var pgTable = PgIdentifierHelper.QuotePgName(tableName);
@@ -320,9 +356,6 @@ public class LogicalReplicationSyncEngine
             .Where(c => c.Flags.HasFlag(RelationMessage.Column.ColumnFlags.PartOfKey))
             .Select(c => PgIdentifierHelper.QuoteIdentifier(c.ColumnName))
             .ToList();
-
-        await using var conn = new NpgsqlConnection(_targetConnectionString);
-        await conn.OpenAsync(ct);
 
         string sql;
         if (pkColumns.Count > 0)
@@ -346,7 +379,7 @@ public class LogicalReplicationSyncEngine
             sql = $"INSERT INTO {pgTable} ({colNames}) VALUES ({paramNames}) ON CONFLICT DO NOTHING";
         }
 
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, targetConn);
 
         int i = 0;
         await foreach (var value in update.NewRow)
@@ -360,7 +393,7 @@ public class LogicalReplicationSyncEngine
         Interlocked.Increment(ref _totalRowsSynced);
     }
 
-    private async Task ApplyKeyDeleteAsync(KeyDeleteMessage delete, CancellationToken ct)
+    private async Task ApplyKeyDeleteAsync(KeyDeleteMessage delete, NpgsqlConnection targetConn, CancellationToken ct)
     {
         var tableName = $"{delete.Relation.Namespace}.{delete.Relation.RelationName}";
         var pgTable = PgIdentifierHelper.QuotePgName(tableName);
@@ -374,12 +407,10 @@ public class LogicalReplicationSyncEngine
         if (keyColumns.Count == 0) return; // Can't delete without key identity
 
         var whereClauses = keyColumns.Select((c, i) =>
-            $"{PgIdentifierHelper.QuoteIdentifier(c.ColumnName)} = @p{i}");
+            $"{PgIdentifierHelper.QuoteIdentifier(c.ColumnName)} IS NOT DISTINCT FROM @p{i}");
         var sql = $"DELETE FROM {pgTable} WHERE {string.Join(" AND ", whereClauses)}";
 
-        await using var conn = new NpgsqlConnection(_targetConnectionString);
-        await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, targetConn);
 
         int i = 0;
         await foreach (var value in delete.Key)
@@ -392,7 +423,7 @@ public class LogicalReplicationSyncEngine
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private async Task ApplyFullDeleteAsync(FullDeleteMessage delete, CancellationToken ct)
+    private async Task ApplyFullDeleteAsync(FullDeleteMessage delete, NpgsqlConnection targetConn, CancellationToken ct)
     {
         var tableName = $"{delete.Relation.Namespace}.{delete.Relation.RelationName}";
         var pgTable = PgIdentifierHelper.QuotePgName(tableName);
@@ -400,12 +431,10 @@ public class LogicalReplicationSyncEngine
 
         // Use all columns for WHERE clause (REPLICA IDENTITY FULL)
         var whereClauses = columns.Select((c, i) =>
-            $"{PgIdentifierHelper.QuoteIdentifier(c.ColumnName)} = @p{i}");
+            $"{PgIdentifierHelper.QuoteIdentifier(c.ColumnName)} IS NOT DISTINCT FROM @p{i}");
         var sql = $"DELETE FROM {pgTable} WHERE {string.Join(" AND ", whereClauses)}";
 
-        await using var conn = new NpgsqlConnection(_targetConnectionString);
-        await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, targetConn);
 
         int i = 0;
         await foreach (var value in delete.OldRow)
@@ -426,11 +455,12 @@ public class LogicalReplicationSyncEngine
         await using var conn = new NpgsqlConnection(_sourceConnectionString);
         await conn.OpenAsync(ct);
 
-        // Drop replication slot
+        // Drop replication slot (parameterized to prevent SQL injection)
         try
         {
             await using var dropSlotCmd = new NpgsqlCommand(
-                $"SELECT pg_drop_replication_slot('{_slotName}')", conn);
+                "SELECT pg_drop_replication_slot(@slot)", conn);
+            dropSlotCmd.Parameters.AddWithValue("slot", _slotName);
             await dropSlotCmd.ExecuteNonQueryAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "42704") // slot does not exist
@@ -469,5 +499,48 @@ public class LogicalReplicationSyncEngine
     {
         var raw = $"scaffold_pub_{migrationId:N}";
         return raw.Length > 63 ? raw[..63] : raw;
+    }
+
+    /// <summary>
+    /// Disposes replication resources: cancels streaming, awaits completion,
+    /// disposes connection, and cleans up slot/publication.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_syncCts is not null)
+        {
+            try { await _syncCts.CancelAsync(); }
+            catch { /* best effort */ }
+        }
+
+        if (_replicationTask is not null)
+        {
+            try { await _replicationTask; }
+            catch (OperationCanceledException) { }
+            catch { /* best effort */ }
+        }
+
+        if (_replicationConnection is not null)
+        {
+            await _replicationConnection.DisposeAsync();
+            _replicationConnection = null;
+        }
+
+        if (_syncCts is not null)
+        {
+            _syncCts.Dispose();
+            _syncCts = null;
+        }
+
+        try
+        {
+            await CleanupReplicationResourcesAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Best effort cleanup during dispose
+        }
+
+        GC.SuppressFinalize(this);
     }
 }
