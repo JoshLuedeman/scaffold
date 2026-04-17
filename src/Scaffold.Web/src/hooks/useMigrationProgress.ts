@@ -28,7 +28,7 @@ export interface UseMigrationProgressResult {
   progress: MigrationProgress | null;
   connectionStatus: ConnectionStatus;
   log: LogEntry[];
-  migrationStatus: 'idle' | 'running' | 'completed' | 'failed';
+  migrationStatus: 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 }
 
 async function getAccessToken(msalInstance: PublicClientApplication): Promise<string> {
@@ -54,7 +54,7 @@ export function useMigrationProgress(
   const [progress, setProgress] = useState<MigrationProgress | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [migrationStatus, setMigrationStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
+  const [migrationStatus, setMigrationStatus] = useState<'idle' | 'running' | 'completed' | 'failed' | 'cancelled'>('idle');
   const connectionRef = useRef<HubConnection | null>(null);
 
   const addLogEntry = useCallback((message: string) => {
@@ -95,6 +95,11 @@ export function useMigrationProgress(
     connection.on('MigrationFailed', (error: string) => {
       setMigrationStatus('failed');
       addLogEntry(`Migration failed: ${error}`);
+    });
+
+    connection.on('MigrationCancelled', () => {
+      setMigrationStatus('cancelled');
+      addLogEntry('Migration was cancelled');
     });
 
     connection.onreconnecting(() => {
