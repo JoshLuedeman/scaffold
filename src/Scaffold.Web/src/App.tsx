@@ -7,6 +7,7 @@ import {
 } from '@azure/msal-react';
 import type { PublicClientApplication } from '@azure/msal-browser';
 import Layout from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import ProjectList from './pages/ProjectList';
 import ProjectDetail from './pages/ProjectDetail';
 import AssessmentWizard from './pages/AssessmentWizard';
@@ -32,15 +33,17 @@ function LoginPage() {
 function AppRoutes() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<ProjectList />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/projects/:id/assess" element={<AssessmentWizard />} />
-          <Route path="/projects/:id/configure" element={<MigrationConfig />} />
-          <Route path="/projects/:id/execute" element={<MigrationExecution />} />
-        </Route>
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<ErrorBoundary><ProjectList /></ErrorBoundary>} />
+            <Route path="/projects/:id" element={<ErrorBoundary><ProjectDetail /></ErrorBoundary>} />
+            <Route path="/projects/:id/assess" element={<ErrorBoundary><AssessmentWizard /></ErrorBoundary>} />
+            <Route path="/projects/:id/configure" element={<ErrorBoundary><MigrationConfig /></ErrorBoundary>} />
+            <Route path="/projects/:id/execute" element={<ErrorBoundary><MigrationExecution /></ErrorBoundary>} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
