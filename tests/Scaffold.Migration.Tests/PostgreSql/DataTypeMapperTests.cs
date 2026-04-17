@@ -40,6 +40,23 @@ public class DataTypeMapperTests
     }
 
     [Fact]
+    public void MapType_DateTime2WithNegativePrecision_ClampsToZero()
+    {
+        var result = DataTypeMapper.MapType("datetime2", precision: -1);
+        Assert.Equal("timestamp(0)", result);
+    }
+
+    [Fact]
+    public void MapType_DateTime2WithNonNumericPrecision_DefaultsBehavior()
+    {
+        // Non-numeric precision in the inline type string doesn't match the
+        // parameterized regex, so the type passes through as-is (unknown type fallback).
+        // The key point is that it doesn't throw.
+        var result = DataTypeMapper.MapType("datetime2(abc)");
+        Assert.Equal("datetime2(abc)", result);
+    }
+
+    [Fact]
     public void MapType_VarcharWithMaxLengthParameter_ReturnsText()
     {
         // Using the explicit maxLength parameter with -1 for MAX

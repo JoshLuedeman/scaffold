@@ -219,11 +219,12 @@ public static class DataTypeMapper
     }
 
     /// <summary>
-    /// Clamps a temporal precision string to the PostgreSQL maximum of 6.
-    /// SQL Server supports datetime2(7) (100ns), but PostgreSQL only supports up to 6 (microseconds).
+    /// Clamps a temporal precision string to the PostgreSQL range of 0–6.
+    /// SQL Server supports datetime2(7) (100ns), but PostgreSQL only supports 0–6 (microseconds).
+    /// Negative values from corrupted metadata are clamped to 0.
     /// </summary>
     private static string ClampTemporalPrecision(string precision)
-        => int.TryParse(precision, out var p) ? Math.Min(p, 6).ToString() : precision;
+        => int.TryParse(precision, out var p) ? Math.Clamp(p, 0, 6).ToString() : precision;
 
     private static string MapLiteralDefault(string expr)
     {
