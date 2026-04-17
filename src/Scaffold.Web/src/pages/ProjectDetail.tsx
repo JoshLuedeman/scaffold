@@ -249,13 +249,27 @@ export default function ProjectDetail() {
                         <Badge appearance="filled" color="success">
                           Approved{migrationPlan.approvedBy ? ` by ${migrationPlan.approvedBy}` : ''}
                         </Badge>
+                      ) : migrationPlan.isRejected ? (
+                        <>
+                          <Badge appearance="filled" color="danger">Rejected</Badge>
+                          {migrationPlan.rejectedBy && (
+                            <Text size={200} style={{ display: 'block', marginTop: tokens.spacingVerticalXS }}>
+                              by {migrationPlan.rejectedBy}
+                            </Text>
+                          )}
+                          {migrationPlan.rejectionReason && (
+                            <Text size={200} style={{ display: 'block', marginTop: tokens.spacingVerticalXS, fontStyle: 'italic' }}>
+                              {migrationPlan.rejectionReason}
+                            </Text>
+                          )}
+                        </>
                       ) : (
                         <Badge appearance="filled" color="warning">Pending Approval</Badge>
                       )}
                     </div>
                   </Card>
                 </div>
-                {!migrationPlan.isApproved && (
+                {(!migrationPlan.isApproved || migrationPlan.isRejected) && (
                   <Button
                     appearance="secondary"
                     as="a"

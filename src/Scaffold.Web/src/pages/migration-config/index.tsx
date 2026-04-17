@@ -112,10 +112,11 @@ export default function MigrationConfig() {
   const [typeFilter, setTypeFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
 
-  // Save/approve state
+  // Save/approve/reject state
   const [saving, setSaving] = useState(false);
   const [savedPlan, setSavedPlan] = useState<MigrationPlan | null>(null);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   // Derive platform from project
@@ -431,6 +432,25 @@ export default function MigrationConfig() {
     }
   }
 
+  async function rejectPlan(reason: string) {
+    if (!savedPlan) return;
+    setRejecting(true);
+    setFeedback(null);
+    try {
+      const rejected = await api.post<MigrationPlan>(
+        `/projects/${id}/migration-plans/${savedPlan.id}/reject`,
+        { reason },
+      );
+      setSavedPlan(rejected);
+      setFeedback({ ok: false, message: 'Plan rejected' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to reject plan';
+      setFeedback({ ok: false, message });
+    } finally {
+      setRejecting(false);
+    }
+  }
+
   if (loading) return <Spinner label="Loading…" />;
   if (error) return <MessageBar intent="error"><MessageBarBody>{error}</MessageBarBody></MessageBar>;
   if (!project) return null;
@@ -592,7 +612,9 @@ export default function MigrationConfig() {
         <ReviewApproveSection
           savedPlan={savedPlan}
           approving={approving}
+          rejecting={rejecting}
           onApprove={approvePlan}
+          onReject={rejectPlan}
           availableScripts={availableScripts}
           selectedScripts={selectedScripts}
           customScripts={customScripts}
