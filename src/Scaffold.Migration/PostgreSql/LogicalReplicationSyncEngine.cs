@@ -27,6 +27,7 @@ public class LogicalReplicationSyncEngine : IAsyncDisposable
     private List<string> _tableNames = [];
     private long _totalRowsSynced;
     private CancellationTokenSource? _syncCts;
+    private DateTime _migrationStartTime;
     private Task? _replicationTask;
     private LogicalReplicationConnection? _replicationConnection;
     private PgOutputReplicationSlot? _preCreatedSlot;
@@ -56,6 +57,8 @@ public class LogicalReplicationSyncEngine : IAsyncDisposable
         Guid migrationId,
         CancellationToken ct = default)
     {
+        _migrationStartTime = DateTime.UtcNow;
+
         if (string.IsNullOrWhiteSpace(sourceConnectionString))
             throw new ArgumentException("Source connection string is required.", nameof(sourceConnectionString));
         if (string.IsNullOrWhiteSpace(targetConnectionString))
@@ -141,7 +144,7 @@ public class LogicalReplicationSyncEngine : IAsyncDisposable
         if (_replicationTask is not null)
         {
             try { await _replicationTask; }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) { /* Expected: we cancel the replication task as part of cutover */ }
         }
 
         // Cleanup publication and slot
@@ -156,7 +159,7 @@ public class LogicalReplicationSyncEngine : IAsyncDisposable
             ProjectId = projectId,
             RowsMigrated = _totalRowsSynced,
             Success = true,
-            StartedAt = DateTime.UtcNow,
+            StartedAt = _migrationStartTime,
             CompletedAt = DateTime.UtcNow
         };
     }
