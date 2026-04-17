@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
@@ -98,6 +99,10 @@ public class SqlServerAssessor : Core.Interfaces.IAssessmentEngine
         _logger.LogInformation("Recommended tier: {Tier} ({Compute}), estimated cost ${Cost}/mo",
             report.Recommendation.ServiceTier, report.Recommendation.ComputeSize,
             report.Recommendation.EstimatedMonthlyCostUsd);
+
+        // Generate migration strategy recommendation (default: same-platform)
+        report.StrategyRecommendation = MigrationStrategyRecommender.Recommend(
+            report.DataProfile, report.Schema, report.Performance, DatabasePlatform.SqlServer);
 
         return report;
     }

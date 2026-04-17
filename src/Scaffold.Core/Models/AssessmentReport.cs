@@ -17,6 +17,7 @@ public class AssessmentReport
 
     public double CompatibilityScore { get; set; }
     public RiskRating Risk { get; set; }
+    public StrategyRecommendation? StrategyRecommendation { get; set; }
 }
 
 public class SchemaInventory
