@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { AssessmentReport as Report, RiskRating, CompatibilitySeverity, ServiceCompatibility, CompatibilityIssue } from '../types';
+import type { AssessmentReport as Report, RiskRating, CompatibilitySeverity, ServiceCompatibility, CompatibilityIssue, DatabasePlatform } from '../types';
 import { api } from '../services/api';
 import {
   Card,
@@ -133,6 +133,30 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+const SQL_SERVER_TIERS: Record<string, string> = {
+  Basic: 'Basic',
+  Standard: 'Standard',
+  Premium: 'Premium',
+  Hyperscale: 'Hyperscale',
+};
+
+const POSTGRESQL_TIERS: Record<string, string> = {
+  Basic: 'Burstable',
+  Standard: 'General Purpose',
+  Premium: 'Memory Optimized',
+  Burstable: 'Burstable',
+  'General Purpose': 'General Purpose',
+  'Memory Optimized': 'Memory Optimized',
+  GeneralPurpose: 'General Purpose',
+  MemoryOptimized: 'Memory Optimized',
+};
+
+function formatTierLabel(tier: string | undefined, isPostgreSql: boolean): string {
+  if (!tier) return 'Not Available';
+  if (isPostgreSql) return POSTGRESQL_TIERS[tier] ?? tier;
+  return SQL_SERVER_TIERS[tier] ?? tier;
+}
+
 function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   const styles = useStyles();
   return (
@@ -144,9 +168,10 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
-export default function AssessmentReport({ report, projectId }: { report: Report; projectId: string }) {
+export default function AssessmentReport({ report, projectId, platform }: { report: Report; projectId: string; platform?: DatabasePlatform }) {
   const styles = useStyles();
   const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk } = report;
+  const isPostgreSql = platform === 'PostgreSql';
   const [serviceSummaries, setServiceSummaries] = useState<ServiceCompatibility[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [serviceFilteredIssues, setServiceFilteredIssues] = useState<CompatibilityIssue[]>([]);
@@ -185,7 +210,15 @@ export default function AssessmentReport({ report, projectId }: { report: Report
       <div className={styles.grid}>
         <MetricCard icon={<TableRegular />} label="Tables" value={schema.tableCount} />
         <MetricCard icon={<TableRegular />} label="Views" value={schema.viewCount} />
-        <MetricCard icon={<DatabaseRegular />} label="Stored Procs" value={schema.storedProcedureCount} />
+        {(!isPostgreSql || schema.storedProcedureCount > 0) && (
+          <MetricCard icon={<DatabaseRegular />} label="Stored Procs" value={schema.storedProcedureCount} />
+        )}
+        {isPostgreSql && schema.extensionCount != null && (
+          <MetricCard icon={<DatabaseRegular />} label="Extensions" value={schema.extensionCount} />
+        )}
+        {isPostgreSql && schema.sequenceCount != null && (
+          <MetricCard icon={<DatabaseRegular />} label="Sequences" value={schema.sequenceCount} />
+        )}
         <MetricCard icon={<DatabaseRegular />} label="Total Rows" value={dataProfile.totalRowCount.toLocaleString()} />
         <MetricCard icon={<DatabaseRegular />} label="Total Size" value={formatBytes(dataProfile.totalSizeBytes)} />
         <MetricCard icon={<ShieldCheckmarkRegular />} label="Compatibility" value={`${compatibilityScore}%`} />
@@ -211,7 +244,7 @@ export default function AssessmentReport({ report, projectId }: { report: Report
       <Text size={400} weight="semibold">Tier Recommendation</Text>
       <Card className={styles.recommendationCard}>
         <CardHeader
-          header={<Text weight="semibold">{recommendation.serviceTier || 'Not Available'} — {recommendation.computeSize || 'N/A'}</Text>}
+          header={<Text weight="semibold">{formatTierLabel(recommendation.serviceTier, isPostgreSql)} — {recommendation.computeSize || 'N/A'}</Text>}
         />
         <div className={styles.recommendationGrid}>
           {recommendation.vCores != null && (
@@ -242,7 +275,7 @@ export default function AssessmentReport({ report, projectId }: { report: Report
 
       {/* Service Compatibility */}
       <Divider />
-      <Text size={400} weight="semibold">Service Compatibility</Text>
+      <Text size={400} weight="semibold">{isPostgreSql ? 'Azure PostgreSQL Service Compatibility' : 'Service Compatibility'}</Text>
       {serviceSummaries.length > 0 && (
         <Table className={styles.serviceTable}>
           <TableHeader>
