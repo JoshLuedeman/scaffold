@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Scaffold.Api.Services;
 using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Enums;
@@ -22,6 +24,8 @@ public class MigrationController : ControllerBase
     private readonly ValidationEngine _validationEngine;
     private readonly IConnectionStringProtector _protector;
     private readonly IPreMigrationValidator _preMigrationValidator;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<MigrationController> _logger;
 
     public MigrationController(
         IProjectRepository projectRepository,
@@ -30,7 +34,9 @@ public class MigrationController : ControllerBase
         MigrationProgressService progressService,
         ValidationEngine validationEngine,
         IConnectionStringProtector protector,
-        IPreMigrationValidator preMigrationValidator)
+        IPreMigrationValidator preMigrationValidator,
+        IServiceScopeFactory scopeFactory,
+        ILogger<MigrationController> logger)
     {
         _projectRepository = projectRepository;
         _dbContext = dbContext;
@@ -39,6 +45,8 @@ public class MigrationController : ControllerBase
         _validationEngine = validationEngine;
         _protector = protector;
         _preMigrationValidator = preMigrationValidator;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     /// <summary>
@@ -97,55 +105,90 @@ public class MigrationController : ControllerBase
             // Decrypt connection strings before entering the background task
             var sourceConnStr = _protector.Unprotect(plan.SourceConnectionString!);
             var targetConnStr = _protector.Unprotect(plan.ExistingTargetConnectionString!);
-            var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform);
+            var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform, plan.TargetPlatform);
+
+            // Capture IDs and singleton references for use in the background task
+            var planId = plan.Id;
+            var projectId2 = project.Id;
+            var migrationIdStr = migrationId.ToString();
+            var scopeFactory = _scopeFactory;
+            var progressService = _progressService;
+            var validationEngine = _validationEngine;
+            var logger = _logger;
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    _progressService.SetMigrationId(migrationId.ToString());
-                    await _progressService.MigrationStarted(migrationId.ToString());
+                    await using var scope = scopeFactory.CreateAsyncScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+                    var projectRepo = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
+
+                    // Reload entities in the new scope
+                    var bgPlan = await db.MigrationPlans
+                        .Include(p => p.PreMigrationScripts)
+                        .Include(p => p.PostMigrationScripts)
+                        .FirstAsync(p => p.Id == planId);
+                    var bgProject = await projectRepo.GetByIdAsync(projectId2);
+
+                    progressService.SetMigrationId(migrationIdStr);
+                    await progressService.MigrationStarted(migrationIdStr);
 
                     // Set decrypted connection strings on plan for engine use
-                    plan.SourceConnectionString = sourceConnStr;
-                    plan.ExistingTargetConnectionString = targetConnStr;
+                    bgPlan.SourceConnectionString = sourceConnStr;
+                    bgPlan.ExistingTargetConnectionString = targetConnStr;
+                    // Prevent EF from persisting decrypted values back to the database
+                    db.Entry(bgPlan).Property(p => p.SourceConnectionString).IsModified = false;
+                    db.Entry(bgPlan).Property(p => p.ExistingTargetConnectionString).IsModified = false;
 
                     Core.Models.MigrationResult result;
 
-                    if (plan.Strategy == MigrationStrategy.ContinuousSync)
+                    if (bgPlan.Strategy == MigrationStrategy.ContinuousSync)
                     {
-                        await migrationEngine.StartContinuousSyncAsync(plan, _progressService, ct);
+                        await migrationEngine.StartContinuousSyncAsync(bgPlan, progressService, CancellationToken.None);
                         // For continuous sync, the result comes from CompleteCutoverAsync later
                         return;
                     }
 
-                    result = await migrationEngine.ExecuteCutoverAsync(plan, _progressService, ct);
+                    result = await migrationEngine.ExecuteCutoverAsync(bgPlan, progressService, CancellationToken.None);
                     result.Id = migrationId;
 
                     // Run post-migration validation
-                    var validationSummary = await _validationEngine.ValidateAsync(
+                    var validationSummary = await validationEngine.ValidateAsync(
                         sourceConnStr,
                         targetConnStr,
-                        plan.IncludedObjects,
+                        bgPlan.IncludedObjects,
                         CancellationToken.None);
 
                     result.Validations = validationSummary.Results;
                     result.Success = result.Success && validationSummary.AllPassed;
 
-                    _dbContext.MigrationResults.Add(result);
-                    plan.Status = result.Success ? MigrationStatus.Completed : MigrationStatus.Failed;
-                    project.Status = result.Success ? ProjectStatus.MigrationComplete : ProjectStatus.Failed;
-                    await _dbContext.SaveChangesAsync(CancellationToken.None);
+                    db.MigrationResults.Add(result);
+                    bgPlan.Status = result.Success ? MigrationStatus.Completed : MigrationStatus.Failed;
+                    bgProject.Status = result.Success ? ProjectStatus.MigrationComplete : ProjectStatus.Failed;
+                    await db.SaveChangesAsync(CancellationToken.None);
 
-                    await _progressService.MigrationCompleted(migrationId.ToString());
+                    await progressService.MigrationCompleted(migrationIdStr);
                 }
                 catch (Exception ex)
                 {
-                    plan.Status = MigrationStatus.Failed;
-                    project.Status = ProjectStatus.Failed;
-                    try { await _dbContext.SaveChangesAsync(CancellationToken.None); } catch { }
-                    await _progressService.MigrationFailed(migrationId.ToString(), ex.Message);
+                    logger.LogError(ex, "Migration {MigrationId} failed", migrationIdStr);
+                    try
+                    {
+                        await using var errorScope = scopeFactory.CreateAsyncScope();
+                        var errorDb = errorScope.ServiceProvider.GetRequiredService<ScaffoldDbContext>();
+                        var errorPlan = await errorDb.MigrationPlans.FindAsync(planId);
+                        var errorProjectRepo = errorScope.ServiceProvider.GetRequiredService<IProjectRepository>();
+                        var errorProject = await errorProjectRepo.GetByIdAsync(projectId2);
+                        if (errorPlan is not null)
+                            errorPlan.Status = MigrationStatus.Failed;
+                        errorProject.Status = ProjectStatus.Failed;
+                        await errorDb.SaveChangesAsync(CancellationToken.None);
+                    }
+                    catch { }
+                    await progressService.MigrationFailed(migrationIdStr, "Migration failed due to an internal error. Check server logs for details.");
                 }
-            }, ct);
+            });
 
             return Accepted(new { MigrationId = migrationId });
         }
@@ -186,7 +229,7 @@ public class MigrationController : ControllerBase
             if (project.MigrationPlan?.Strategy != MigrationStrategy.ContinuousSync)
                 return BadRequest("Cutover is only available for continuous sync migrations.");
 
-            var migrationEngine = _migrationEngineFactory.Create(project.MigrationPlan.SourcePlatform);
+            var migrationEngine = _migrationEngineFactory.Create(project.MigrationPlan.SourcePlatform, project.MigrationPlan.TargetPlatform);
             var result = await migrationEngine.CompleteCutoverAsync(migrationId, ct);
 
             // Run post-cutover validation

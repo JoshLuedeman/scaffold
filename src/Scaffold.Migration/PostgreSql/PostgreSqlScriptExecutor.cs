@@ -1,18 +1,20 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Scaffold.Core.Enums;
 using Scaffold.Core.Interfaces;
 using Scaffold.Core.Models;
 
-namespace Scaffold.Migration.SqlServer;
+namespace Scaffold.Migration.PostgreSql;
 
 /// <summary>
-/// Executes pre/post migration SQL scripts against a target database.
+/// Executes pre/post migration SQL scripts against a PostgreSQL target database.
+/// Mirrors the SQL Server <see cref="SqlServer.ScriptExecutor"/> but uses Npgsql.
 /// </summary>
-public class ScriptExecutor
+public class PostgreSqlScriptExecutor
 {
     private const int DefaultScriptTimeoutSeconds = 300;
+
     /// <summary>
-    /// Executes a list of migration scripts in order against the target connection.
+    /// Executes a list of migration scripts in order against the target PostgreSQL connection.
     /// Scripts must have SqlContent populated before calling this method.
     /// </summary>
     public virtual async Task ExecuteScriptsAsync(
@@ -30,7 +32,7 @@ public class ScriptExecutor
         var effectiveTimeout = ClampTimeout(scriptTimeout, DefaultScriptTimeoutSeconds);
         var phase = enabledScripts[0].Phase == MigrationScriptPhase.Pre ? "PreScripts" : "PostScripts";
 
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
 
         for (var i = 0; i < enabledScripts.Count; i++)
@@ -55,7 +57,7 @@ public class ScriptExecutor
                 continue;
             }
 
-            await using var cmd = new SqlCommand(script.SqlContent, connection);
+            await using var cmd = new NpgsqlCommand(script.SqlContent, connection);
             cmd.CommandTimeout = effectiveTimeout;
             await cmd.ExecuteNonQueryAsync(ct);
         }

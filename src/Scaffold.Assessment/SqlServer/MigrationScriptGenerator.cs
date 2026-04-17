@@ -89,9 +89,6 @@ public static class MigrationScriptGenerator
 
     public static string GenerateApplyForeignKeys(SchemaInventory schema)
     {
-        // NOTE: We can only generate DROP statements from schema inventory.
-        // For CREATE FK, we'd need the full FK definition (referenced table, columns).
-        // Generate a template that the user should review.
         var fks = schema.Objects
             .Where(o => o.ObjectType == "Constraint" && o.SubType == "FOREIGN KEY")
             .ToList();
@@ -99,13 +96,63 @@ public static class MigrationScriptGenerator
         if (fks.Count == 0) return "-- No foreign keys to restore";
 
         var sb = new StringBuilder();
-        sb.AppendLine("-- Re-enable Foreign Keys with validation");
+        sb.AppendLine("-- Re-create Foreign Keys");
         sb.AppendLine($"-- {fks.Count} foreign key(s)");
-        sb.AppendLine("-- NOTE: This re-enables existing FK constraints. If FKs were dropped, re-run schema migration to recreate them.");
         sb.AppendLine();
         foreach (var fk in fks)
         {
-            sb.AppendLine($"ALTER TABLE [{fk.Schema}].[{fk.ParentObjectName}] WITH CHECK CHECK CONSTRAINT [{fk.Name}];");
+            if (!string.IsNullOrEmpty(fk.Columns) && !string.IsNullOrEmpty(fk.ReferencedTable) && !string.IsNullOrEmpty(fk.ReferencedColumns))
+            {
+                var refSchema = fk.ReferencedSchema ?? "dbo";
+                var fkColumns = FormatColumnList(fk.Columns);
+                var refColumns = FormatColumnList(fk.ReferencedColumns);
+
+                sb.AppendLine($"ALTER TABLE [{fk.Schema}].[{fk.ParentObjectName}] ADD CONSTRAINT [{fk.Name}]");
+                sb.AppendLine($"    FOREIGN KEY ({fkColumns}) REFERENCES [{refSchema}].[{fk.ReferencedTable}] ({refColumns})");
+                sb.Append($"    ON DELETE {MapReferentialAction(fk.DeleteAction)} ON UPDATE {MapReferentialAction(fk.UpdateAction)}");
+                sb.AppendLine(";");
+                sb.AppendLine();
+            }
+            else
+            {
+                // Fallback: re-enable existing constraint when FK metadata is missing
+                sb.AppendLine($"ALTER TABLE [{fk.Schema}].[{fk.ParentObjectName}] WITH CHECK CHECK CONSTRAINT [{fk.Name}];");
+            }
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    public static string GenerateCreateForeignKeysPostgreSql(SchemaInventory schema)
+    {
+        var fks = schema.Objects
+            .Where(o => o.ObjectType == "Constraint" && o.SubType == "FOREIGN KEY")
+            .ToList();
+
+        if (fks.Count == 0) return "-- No foreign keys to create";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("-- Create Foreign Keys (PostgreSQL syntax)");
+        sb.AppendLine($"-- {fks.Count} foreign key(s)");
+        sb.AppendLine();
+        foreach (var fk in fks)
+        {
+            if (!string.IsNullOrEmpty(fk.Columns) && !string.IsNullOrEmpty(fk.ReferencedTable) && !string.IsNullOrEmpty(fk.ReferencedColumns))
+            {
+                var refSchema = MapSchemaToPg(fk.ReferencedSchema ?? "dbo");
+                var fkColumns = FormatColumnListPg(fk.Columns);
+                var refColumns = FormatColumnListPg(fk.ReferencedColumns);
+                var parentSchema = MapSchemaToPg(fk.Schema);
+
+                sb.AppendLine($"ALTER TABLE {QuotePgIdentifier(parentSchema)}.{QuotePgIdentifier(fk.ParentObjectName ?? string.Empty)} ADD CONSTRAINT {QuotePgIdentifier(fk.Name)}");
+                sb.AppendLine($"    FOREIGN KEY ({fkColumns}) REFERENCES {QuotePgIdentifier(refSchema)}.{QuotePgIdentifier(fk.ReferencedTable)} ({refColumns})");
+                sb.Append($"    ON DELETE {MapReferentialAction(fk.DeleteAction)} ON UPDATE {MapReferentialAction(fk.UpdateAction)}");
+                sb.AppendLine(";");
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine($"-- WARNING: Missing FK metadata for [{fk.Name}] on [{fk.ParentObjectName}]. Manual creation required.");
+            }
         }
         return sb.ToString().TrimEnd();
     }
@@ -223,6 +270,8 @@ public static class MigrationScriptGenerator
             "drop-triggers" => GenerateDropTriggers(schema),
             "disable-check-constraints" => GenerateDisableCheckConstraints(schema),
             "apply-foreign-keys" => GenerateApplyForeignKeys(schema),
+            "create-foreign-keys" => GenerateApplyForeignKeys(schema),
+            "create-foreign-keys-pg" => GenerateCreateForeignKeysPostgreSql(schema),
             "apply-nonclustered-indexes" => GenerateApplyNonClusteredIndexes(schema),
             "apply-triggers" => GenerateApplyTriggers(schema),
             "enable-check-constraints" => GenerateEnableCheckConstraints(schema),
@@ -248,13 +297,46 @@ public static class MigrationScriptGenerator
             new("drop-triggers", "Drop Triggers", "Pre", $"Removes {triggerCount} trigger(s) to prevent firing during bulk load", triggerCount),
             new("disable-check-constraints", "Disable Check Constraints", "Pre", $"Disables {checkCount} check constraint(s) during data load", checkCount),
 
-            new("apply-foreign-keys", "Apply Foreign Keys", "Post", $"Re-enables {fkCount} FK constraint(s) with validation", fkCount),
+            new("apply-foreign-keys", "Apply Foreign Keys", "Post", $"Re-creates {fkCount} FK constraint(s) with full definitions", fkCount),
+            new("create-foreign-keys", "Create Foreign Keys (SQL Server)", "Post", $"Creates {fkCount} FK constraint(s) using SQL Server syntax", fkCount),
+            new("create-foreign-keys-pg", "Create Foreign Keys (PostgreSQL)", "Post", $"Creates {fkCount} FK constraint(s) using PostgreSQL syntax", fkCount),
             new("apply-nonclustered-indexes", "Apply Non-Clustered Indexes", "Post", $"Rebuilds {ncIndexCount} non-clustered index(es)", ncIndexCount),
             new("apply-triggers", "Apply Triggers", "Post", $"Re-enables {triggerCount} trigger(s)", triggerCount),
             new("enable-check-constraints", "Enable Check Constraints", "Post", $"Re-enables {checkCount} check constraint(s) with validation", checkCount),
             new("update-statistics", "Update Statistics", "Post", $"Updates statistics on {tableCount} table(s)", tableCount),
             new("validate-row-counts", "Validate Row Counts", "Post", $"Generates row count queries for {tableCount} table(s)", tableCount),
         ];
+    }
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    /// <summary>Formats comma-separated column names with SQL Server brackets.</summary>
+    private static string FormatColumnList(string columns)
+        => string.Join(", ", columns.Split(',').Select(c => $"[{c.Trim()}]"));
+
+    /// <summary>Formats comma-separated column names with PostgreSQL double-quotes, escaping embedded quotes.</summary>
+    private static string FormatColumnListPg(string columns)
+        => string.Join(", ", columns.Split(',').Select(c => QuotePgIdentifier(c.Trim())));
+
+    /// <summary>Wraps a single identifier in PostgreSQL double-quotes, escaping embedded double-quotes.</summary>
+    private static string QuotePgIdentifier(string name)
+        => $"\"{name.Replace("\"", "\"\"")}\"";
+
+    /// <summary>Maps SQL Server schema to PostgreSQL (dbo → public, others kept as-is).</summary>
+    private static string MapSchemaToPg(string schema)
+        => string.Equals(schema, "dbo", StringComparison.OrdinalIgnoreCase) ? "public" : schema;
+
+    /// <summary>Maps SQL Server referential action descriptions to SQL standard keywords.</summary>
+    private static string MapReferentialAction(string? action)
+    {
+        if (string.IsNullOrEmpty(action)) return "NO ACTION";
+        return action.Replace("_", " ").ToUpperInvariant() switch
+        {
+            "NO ACTION" => "NO ACTION",
+            "CASCADE" => "CASCADE",
+            "SET NULL" => "SET NULL",
+            "SET DEFAULT" => "SET DEFAULT",
+            _ => "NO ACTION"
+        };
     }
 }
 

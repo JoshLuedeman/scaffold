@@ -8,6 +8,7 @@ using Scaffold.Assessment.SqlServer;
 using Scaffold.Core.Interfaces;
 using Scaffold.Infrastructure;
 using Scaffold.Infrastructure.Data;
+using Scaffold.Migration.PostgreSql;
 using Scaffold.Migration.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,6 +70,14 @@ builder.Services.AddScoped<SqlServerAssessor>();
 builder.Services.AddSingleton<Scaffold.Assessment.PostgreSql.PostgreSqlConnectionFactory>();
 builder.Services.AddScoped<Scaffold.Assessment.PostgreSql.PostgreSqlAssessor>();
 builder.Services.AddScoped<SqlServerMigrator>();
+// PostgreSQL cross-platform migration components
+builder.Services.AddScoped<SqlServerSchemaReader>();
+builder.Services.AddScoped<DdlTranslator>();
+builder.Services.AddScoped<PostgreSqlSchemaDeployer>();
+builder.Services.AddScoped<CrossPlatformBulkCopier>();
+builder.Services.AddScoped<PostgreSqlScriptExecutor>();
+builder.Services.AddScoped<PostgreSqlValidationEngine>();
+builder.Services.AddScoped<SqlServerToPostgreSqlMigrator>();
 builder.Services.AddScoped<IAssessmentEngineFactory, AssessmentEngineFactory>();
 builder.Services.AddScoped<IMigrationEngineFactory, MigrationEngineFactory>();
 builder.Services.AddSingleton<ValidationEngine>();

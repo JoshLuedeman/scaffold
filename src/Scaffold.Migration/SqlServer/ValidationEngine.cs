@@ -147,7 +147,11 @@ public class ValidationEngine
     private static string QuoteName(string tableName)
     {
         var parts = tableName.Split('.');
-        return string.Join(".", parts.Select(p => $"[{p.Trim('[', ']')}]"));
+        return string.Join(".", parts.Select(p =>
+        {
+            var clean = p.Trim('[', ']');
+            return $"[{clean.Replace("]", "]]")}]";
+        }));
     }
 }
 

@@ -167,6 +167,27 @@ public class BulkDataCopierTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void QuoteName_EscapesBrackets()
+    {
+        var result = BulkDataCopier.QuoteName("dbo.test]name");
+        Assert.Equal("[dbo].[test]]name]", result);
+    }
+
+    [Fact]
+    public void QuoteName_HandlesNormalNames()
+    {
+        var result = BulkDataCopier.QuoteName("dbo.Users");
+        Assert.Equal("[dbo].[Users]", result);
+    }
+
+    [Fact]
+    public void QuoteName_HandlesPreQuotedNames()
+    {
+        var result = BulkDataCopier.QuoteName("[dbo].[Users]");
+        Assert.Equal("[dbo].[Users]", result);
+    }
+
     #endregion
 
     #region Constraint disable/enable order

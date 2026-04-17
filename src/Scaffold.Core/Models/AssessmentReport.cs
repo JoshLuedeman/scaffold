@@ -17,6 +17,7 @@ public class AssessmentReport
 
     public double CompatibilityScore { get; set; }
     public RiskRating Risk { get; set; }
+    public StrategyRecommendation? StrategyRecommendation { get; set; }
 }
 
 public class SchemaInventory
@@ -36,6 +37,14 @@ public class SchemaObject
     public string ObjectType { get; set; } = string.Empty;
     public string? ParentObjectName { get; set; }
     public string? SubType { get; set; }
+
+    // FK-specific properties (populated for FOREIGN KEY constraints)
+    public string? ReferencedSchema { get; set; }
+    public string? ReferencedTable { get; set; }
+    public string? Columns { get; set; }            // Comma-separated FK columns
+    public string? ReferencedColumns { get; set; }   // Comma-separated referenced columns
+    public string? DeleteAction { get; set; }        // NO ACTION, CASCADE, SET NULL, SET DEFAULT
+    public string? UpdateAction { get; set; }        // NO ACTION, CASCADE, SET NULL, SET DEFAULT
 }
 
 public class DataProfile

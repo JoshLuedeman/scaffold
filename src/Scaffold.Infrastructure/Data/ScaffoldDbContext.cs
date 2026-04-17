@@ -132,6 +132,11 @@ public class ScaffoldDbContext : DbContext
                 r.ToJson();
                 r.Property(x => x.EstimatedMonthlyCostUsd).HasPrecision(18, 2);
             });
+
+            entity.OwnsOne(a => a.StrategyRecommendation, sr =>
+            {
+                sr.ToJson();
+            });
         });
     }
 
