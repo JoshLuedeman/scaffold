@@ -103,7 +103,7 @@ public class SqlServerSchemaReader
             {
                 Name = reader.GetString(2),
                 DataType = reader.GetString(3),
-                MaxLength = reader.IsDBNull(4) ? null : (int)reader.GetInt64(4),
+                MaxLength = reader.IsDBNull(4) ? null : Convert.ToInt32(reader.GetValue(4)),
                 Precision = reader.IsDBNull(5) ? null : (int)reader.GetByte(5),
                 Scale = reader.IsDBNull(6) ? null : (int)reader.GetInt32(6),
                 IsNullable = reader.GetString(7) == "YES",
