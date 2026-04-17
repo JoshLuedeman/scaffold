@@ -97,7 +97,7 @@ public class MigrationController : ControllerBase
             // Decrypt connection strings before entering the background task
             var sourceConnStr = _protector.Unprotect(plan.SourceConnectionString!);
             var targetConnStr = _protector.Unprotect(plan.ExistingTargetConnectionString!);
-            var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform);
+            var migrationEngine = _migrationEngineFactory.Create(plan.SourcePlatform, plan.TargetPlatform);
             _ = Task.Run(async () =>
             {
                 try
@@ -186,7 +186,7 @@ public class MigrationController : ControllerBase
             if (project.MigrationPlan?.Strategy != MigrationStrategy.ContinuousSync)
                 return BadRequest("Cutover is only available for continuous sync migrations.");
 
-            var migrationEngine = _migrationEngineFactory.Create(project.MigrationPlan.SourcePlatform);
+            var migrationEngine = _migrationEngineFactory.Create(project.MigrationPlan.SourcePlatform, project.MigrationPlan.TargetPlatform);
             var result = await migrationEngine.CompleteCutoverAsync(migrationId, ct);
 
             // Run post-cutover validation

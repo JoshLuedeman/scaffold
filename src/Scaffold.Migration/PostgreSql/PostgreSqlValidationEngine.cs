@@ -26,7 +26,7 @@ public class PostgreSqlValidationEngine
     /// <param name="tableNames">Tables to validate.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Summary of validation results across all tables.</returns>
-    public async Task<ValidationSummary> ValidateAsync(
+    public virtual async Task<ValidationSummary> ValidateAsync(
         string sourceConnectionString,
         string targetConnectionString,
         IReadOnlyList<string> tableNames,
