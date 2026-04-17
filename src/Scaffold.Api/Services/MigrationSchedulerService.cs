@@ -162,7 +162,7 @@ public class MigrationSchedulerService : BackgroundService
             plan.Status = MigrationStatus.Failed;
             project.Status = ProjectStatus.Failed;
             try { await db.SaveChangesAsync(CancellationToken.None); } catch { }
-            await progressService.MigrationFailed(migrationId.ToString(), ex.Message);
+            await progressService.MigrationFailed(migrationId.ToString(), "Migration failed due to an internal error. Check server logs for details.");
             _logger.LogError(ex, "Scheduled migration {MigrationId} failed", migrationId);
         }
     }
