@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { TestWrapper } from '../../test/msalMock';
 import AssessmentReport from '../AssessmentReport';
-import type { AssessmentReport as Report } from '../../types';
+import type { AssessmentReport as Report, CompatibilityIssue } from '../../types';
 
 vi.mock('../../services/api', () => ({
   api: {
@@ -9,6 +10,32 @@ vi.mock('../../services/api', () => ({
     post: vi.fn().mockResolvedValue({ compatibilityIssues: [] }),
   },
 }));
+
+const sampleIssues: CompatibilityIssue[] = [
+  {
+    objectName: 'dbo.MyProc',
+    issueType: 'StoredProcedure',
+    description: 'Uses unsupported CROSS APPLY syntax',
+    isBlocking: true,
+    severity: 'Unsupported',
+    docUrl: 'https://docs.example.com/cross-apply',
+  },
+  {
+    objectName: 'dbo.MyView',
+    issueType: 'View',
+    description: 'Uses partially supported indexed view',
+    isBlocking: false,
+    severity: 'Partial',
+  },
+  {
+    objectName: 'dbo.AnotherProc',
+    issueType: 'StoredProcedure',
+    description: 'Uses unsupported CLR integration',
+    isBlocking: true,
+    severity: 'Unsupported',
+    docUrl: 'https://docs.example.com/clr',
+  },
+];
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   return {
@@ -247,6 +274,97 @@ describe('AssessmentReport', () => {
         </TestWrapper>,
       );
       expect(screen.getByText('No compatibility issues found.')).toBeInTheDocument();
+    });
+
+    it('renders severity count badges in the header', () => {
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('2 Unsupported')).toBeInTheDocument();
+      expect(screen.getByText('1 Partial')).toBeInTheDocument();
+    });
+
+    it('renders expandable rows that show details on click', async () => {
+      const user = userEvent.setup();
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+
+      // The first issue row should be expandable
+      const firstRow = screen.getByTestId('issue-row-0');
+      expect(firstRow).toHaveAttribute('aria-expanded', 'false');
+
+      // Click to expand
+      await user.click(firstRow);
+      expect(firstRow).toHaveAttribute('aria-expanded', 'true');
+
+      // Should see detail info (Blocking badge, doc link)
+      expect(screen.getByText('Blocking')).toBeInTheDocument();
+      expect(screen.getByText('View remediation guidance →')).toBeInTheDocument();
+    });
+
+    it('shows Non-blocking badge for non-blocking issues', async () => {
+      const user = userEvent.setup();
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+
+      // The Partial/non-blocking issue is at index 2 (after two Unsupported issues sorted first)
+      const nonBlockingRow = screen.getByTestId('issue-row-2');
+      await user.click(nonBlockingRow);
+      expect(screen.getByText('Non-blocking')).toBeInTheDocument();
+    });
+
+    it('renders group-by controls', () => {
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('Group by:')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'None' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Severity' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Type' })).toBeInTheDocument();
+    });
+
+    it('groups issues by severity when selected', async () => {
+      const user = userEvent.setup();
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Severity' }));
+      // Should show group headers
+      expect(screen.getByText('Unsupported (2)')).toBeInTheDocument();
+      expect(screen.getByText('Partial Support (1)')).toBeInTheDocument();
+    });
+
+    it('groups issues by type when selected', async () => {
+      const user = userEvent.setup();
+      const report = makeReport({ compatibilityIssues: sampleIssues });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Type' }));
+      // Should show group headers by issueType
+      expect(screen.getByText('StoredProcedure (2)')).toBeInTheDocument();
+      expect(screen.getByText('View (1)')).toBeInTheDocument();
     });
   });
 });

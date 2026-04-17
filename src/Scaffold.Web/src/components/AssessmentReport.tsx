@@ -1,11 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { AssessmentReport as Report, RiskRating, CompatibilitySeverity, ServiceCompatibility, CompatibilityIssue, DatabasePlatform } from '../types';
 import { api } from '../services/api';
 import {
+  Button,
   Card,
   CardHeader,
   Text,
   Badge,
+  MessageBar,
+  MessageBarBody,
   Table,
   TableHeader,
   TableRow,
@@ -17,6 +20,8 @@ import {
   Divider,
 } from '@fluentui/react-components';
 import {
+  ChevronDownRegular,
+  ChevronRightRegular,
   DatabaseRegular,
   TableRegular,
   GaugeRegular,
@@ -124,6 +129,37 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase200,
     marginLeft: tokens.spacingHorizontalXS,
   },
+  issueExpandRow: {
+    cursor: 'pointer',
+    '&:hover': {
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
+  },
+  issueDetailCell: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    padding: tokens.spacingVerticalM,
+    paddingLeft: tokens.spacingHorizontalXL,
+  },
+  issueDetailGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL}`,
+  },
+  groupByControls: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalS,
+    alignItems: 'center',
+    marginBottom: tokens.spacingVerticalS,
+  },
+  severityBadges: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalS,
+    marginLeft: tokens.spacingHorizontalM,
+  },
+  groupHeader: {
+    backgroundColor: tokens.colorNeutralBackground3,
+    fontWeight: tokens.fontWeightSemibold,
+  },
 });
 
 function formatBytes(bytes: number): string {
@@ -168,6 +204,8 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
+export type IssueGroupBy = 'none' | 'severity' | 'type';
+
 export default function AssessmentReport({ report, projectId, platform }: { report: Report; projectId: string; platform?: DatabasePlatform }) {
   const styles = useStyles();
   const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk } = report;
@@ -175,6 +213,8 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
   const [serviceSummaries, setServiceSummaries] = useState<ServiceCompatibility[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [serviceFilteredIssues, setServiceFilteredIssues] = useState<CompatibilityIssue[]>([]);
+  const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set());
+  const [groupBy, setGroupBy] = useState<IssueGroupBy>('none');
 
   useEffect(() => {
     api.get<ServiceCompatibility[]>(`/projects/${projectId}/assessments/compatibility-summary`)
@@ -203,6 +243,34 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
 
   const displayIssues = selectedService ? serviceFilteredIssues : defaultFilteredIssues;
   const unsupportedCount = displayIssues.filter((i) => i.severity === 'Unsupported').length;
+  const partialCount = displayIssues.filter((i) => i.severity === 'Partial').length;
+
+  const toggleIssueExpand = useCallback((index: number) => {
+    setExpandedIssues((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
+
+  const groupedIssues = useMemo(() => {
+    if (groupBy === 'none') return null;
+    const groups: Record<string, CompatibilityIssue[]> = {};
+    for (const issue of displayIssues) {
+      const key = groupBy === 'severity' ? issue.severity : issue.issueType;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(issue);
+    }
+    // Sort groups: severity groups in severity order, type groups alphabetically
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (groupBy === 'severity') {
+        return (severityOrder[a as CompatibilitySeverity] ?? 99) - (severityOrder[b as CompatibilitySeverity] ?? 99);
+      }
+      return a.localeCompare(b);
+    });
+    return sortedKeys.map((key) => ({ key, issues: groups[key] }));
+  }, [displayIssues, groupBy]);
 
   return (
     <div className={styles.root}>
@@ -330,52 +398,205 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
 
       {/* Compatibility Issues */}
       <Divider />
-      <Text size={400} weight="semibold">
-        Compatibility Issues
-        {selectedService ? (
-          <Text size={400} weight="semibold"> — {selectedService} ({displayIssues.length} issues)</Text>
-        ) : (
-          <Text size={400} weight="semibold"> ({compatibilityIssues.length})</Text>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+        <Text size={400} weight="semibold">
+          Compatibility Issues
+          {selectedService ? (
+            <Text size={400} weight="semibold"> — {selectedService} ({displayIssues.length} issues)</Text>
+          ) : (
+            <Text size={400} weight="semibold"> ({compatibilityIssues.length})</Text>
+          )}
+        </Text>
+        {displayIssues.length > 0 && (
+          <span className={styles.severityBadges}>
+            {unsupportedCount > 0 && (
+              <Badge appearance="filled" color="danger">{unsupportedCount} Unsupported</Badge>
+            )}
+            {partialCount > 0 && (
+              <Badge appearance="filled" color="warning">{partialCount} Partial</Badge>
+            )}
+          </span>
         )}
-        {unsupportedCount > 0 && <Text size={400} weight="semibold" style={{ color: tokens.colorPaletteRedForeground1 }}> — {unsupportedCount} unsupported</Text>}
-      </Text>
+      </div>
       {displayIssues.length === 0 ? (
         <Text className={styles.noIssues}>
           {selectedService ? `No compatibility issues for ${selectedService}.` : 'No compatibility issues found.'}
         </Text>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Object</TableHeaderCell>
-              <TableHeaderCell>Type</TableHeaderCell>
-              <TableHeaderCell>Description</TableHeaderCell>
-              <TableHeaderCell>Severity</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {displayIssues.map((issue, i) => (
-              <TableRow key={i}>
-                <TableCell>{issue.objectName}</TableCell>
-                <TableCell>{issue.issueType}</TableCell>
-                <TableCell>
-                  {issue.description}
-                  {issue.docUrl && (
-                    <a href={issue.docUrl} target="_blank" rel="noopener noreferrer" className={styles.docLink}>
-                      Learn more
-                    </a>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge appearance="filled" color={severityColor[issue.severity]}>
-                    {severityLabel[issue.severity]}
-                  </Badge>
-                </TableCell>
+        <>
+          <div className={styles.groupByControls}>
+            <Text size={200}>Group by:</Text>
+            <Button
+              size="small"
+              appearance={groupBy === 'none' ? 'primary' : 'subtle'}
+              onClick={() => setGroupBy('none')}
+            >
+              None
+            </Button>
+            <Button
+              size="small"
+              appearance={groupBy === 'severity' ? 'primary' : 'subtle'}
+              onClick={() => setGroupBy('severity')}
+            >
+              Severity
+            </Button>
+            <Button
+              size="small"
+              appearance={groupBy === 'type' ? 'primary' : 'subtle'}
+              onClick={() => setGroupBy('type')}
+            >
+              Type
+            </Button>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell style={{ width: '32px' }} />
+                <TableHeaderCell>Object</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell>Description</TableHeaderCell>
+                <TableHeaderCell>Severity</TableHeaderCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {groupedIssues ? (
+                groupedIssues.map((group) => (
+                  <IssueGroup
+                    key={group.key}
+                    groupKey={group.key}
+                    issues={group.issues}
+                    groupBy={groupBy}
+                    expandedIssues={expandedIssues}
+                    onToggleExpand={toggleIssueExpand}
+                    styles={styles}
+                    displayIssues={displayIssues}
+                  />
+                ))
+              ) : (
+                displayIssues.map((issue, i) => (
+                  <IssueRow
+                    key={i}
+                    issue={issue}
+                    index={i}
+                    expanded={expandedIssues.has(i)}
+                    onToggle={() => toggleIssueExpand(i)}
+                    styles={styles}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </>
       )}
     </div>
+  );
+}
+
+function IssueGroup({
+  groupKey,
+  issues,
+  groupBy,
+  expandedIssues,
+  onToggleExpand,
+  styles,
+  displayIssues,
+}: {
+  groupKey: string;
+  issues: CompatibilityIssue[];
+  groupBy: IssueGroupBy;
+  expandedIssues: Set<number>;
+  onToggleExpand: (index: number) => void;
+  styles: ReturnType<typeof useStyles>;
+  displayIssues: CompatibilityIssue[];
+}) {
+  const label = groupBy === 'severity'
+    ? severityLabel[groupKey as CompatibilitySeverity] ?? groupKey
+    : groupKey;
+
+  return (
+    <>
+      <TableRow className={styles.groupHeader}>
+        <TableCell colSpan={5}>
+          <Text weight="semibold">{label} ({issues.length})</Text>
+        </TableCell>
+      </TableRow>
+      {issues.map((issue) => {
+        const globalIndex = displayIssues.indexOf(issue);
+        return (
+          <IssueRow
+            key={globalIndex}
+            issue={issue}
+            index={globalIndex}
+            expanded={expandedIssues.has(globalIndex)}
+            onToggle={() => onToggleExpand(globalIndex)}
+            styles={styles}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function IssueRow({
+  issue,
+  index,
+  expanded,
+  onToggle,
+  styles,
+}: {
+  issue: CompatibilityIssue;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  styles: ReturnType<typeof useStyles>;
+}) {
+  return (
+    <>
+      <TableRow
+        key={`row-${index}`}
+        className={styles.issueExpandRow}
+        onClick={onToggle}
+        aria-expanded={expanded}
+        data-testid={`issue-row-${index}`}
+      >
+        <TableCell>
+          {expanded ? <ChevronDownRegular /> : <ChevronRightRegular />}
+        </TableCell>
+        <TableCell>{issue.objectName}</TableCell>
+        <TableCell>{issue.issueType}</TableCell>
+        <TableCell>{issue.description}</TableCell>
+        <TableCell>
+          <Badge appearance="filled" color={severityColor[issue.severity]}>
+            {severityLabel[issue.severity]}
+          </Badge>
+        </TableCell>
+      </TableRow>
+      {expanded && (
+        <TableRow key={`detail-${index}`}>
+          <TableCell colSpan={5} className={styles.issueDetailCell}>
+            <div className={styles.issueDetailGrid}>
+              <div>
+                <Text size={200} weight="semibold" block>Full Description</Text>
+                <Text size={300}>{issue.description}</Text>
+              </div>
+              <div>
+                <Text size={200} weight="semibold" block>Impact</Text>
+                <Badge appearance="filled" color={issue.isBlocking ? 'danger' : 'warning'}>
+                  {issue.isBlocking ? 'Blocking' : 'Non-blocking'}
+                </Badge>
+              </div>
+              {issue.docUrl && (
+                <div>
+                  <Text size={200} weight="semibold" block>Documentation</Text>
+                  <a href={issue.docUrl} target="_blank" rel="noopener noreferrer">
+                    View remediation guidance →
+                  </a>
+                </div>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
