@@ -62,7 +62,7 @@ public class DataTypeMapperTests
     [InlineData("datetime", "timestamp")]
     [InlineData("datetime2", "timestamp")]
     [InlineData("datetime2(3)", "timestamp(3)")]
-    [InlineData("datetime2(7)", "timestamp(7)")]
+    [InlineData("datetime2(7)", "timestamp(6)")]
     [InlineData("datetimeoffset", "timestamptz")]
     [InlineData("smalldatetime", "timestamp(0)")]
     [InlineData("date", "date")]

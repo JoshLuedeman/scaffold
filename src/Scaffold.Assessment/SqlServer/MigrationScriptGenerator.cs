@@ -143,8 +143,8 @@ public static class MigrationScriptGenerator
                 var refColumns = FormatColumnListPg(fk.ReferencedColumns);
                 var parentSchema = MapSchemaToPg(fk.Schema);
 
-                sb.AppendLine($"ALTER TABLE \"{parentSchema}\".\"{fk.ParentObjectName}\" ADD CONSTRAINT \"{fk.Name}\"");
-                sb.AppendLine($"    FOREIGN KEY ({fkColumns}) REFERENCES \"{refSchema}\".\"{fk.ReferencedTable}\" ({refColumns})");
+                sb.AppendLine($"ALTER TABLE {QuotePgIdentifier(parentSchema)}.{QuotePgIdentifier(fk.ParentObjectName ?? string.Empty)} ADD CONSTRAINT {QuotePgIdentifier(fk.Name)}");
+                sb.AppendLine($"    FOREIGN KEY ({fkColumns}) REFERENCES {QuotePgIdentifier(refSchema)}.{QuotePgIdentifier(fk.ReferencedTable)} ({refColumns})");
                 sb.Append($"    ON DELETE {MapReferentialAction(fk.DeleteAction)} ON UPDATE {MapReferentialAction(fk.UpdateAction)}");
                 sb.AppendLine(";");
                 sb.AppendLine();
@@ -313,9 +313,13 @@ public static class MigrationScriptGenerator
     private static string FormatColumnList(string columns)
         => string.Join(", ", columns.Split(',').Select(c => $"[{c.Trim()}]"));
 
-    /// <summary>Formats comma-separated column names with PostgreSQL double-quotes.</summary>
+    /// <summary>Formats comma-separated column names with PostgreSQL double-quotes, escaping embedded quotes.</summary>
     private static string FormatColumnListPg(string columns)
-        => string.Join(", ", columns.Split(',').Select(c => $"\"{c.Trim()}\""));
+        => string.Join(", ", columns.Split(',').Select(c => QuotePgIdentifier(c.Trim())));
+
+    /// <summary>Wraps a single identifier in PostgreSQL double-quotes, escaping embedded double-quotes.</summary>
+    private static string QuotePgIdentifier(string name)
+        => $"\"{name.Replace("\"", "\"\"")}\"";
 
     /// <summary>Maps SQL Server schema to PostgreSQL (dbo → public, others kept as-is).</summary>
     private static string MapSchemaToPg(string schema)

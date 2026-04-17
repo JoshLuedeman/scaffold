@@ -121,20 +121,21 @@ public class CrossPlatformBulkCopier
         var pgColumns = string.Join(", ", columnNames.Select(n => $"\"{n}\""));
         var copyCommand = $"COPY {pgTableName} ({pgColumns}) FROM STDIN (FORMAT BINARY)";
 
-        // 3. Open PG connection and stream data
+        // 3. Open PG connection and stream data within a transaction
         await using var targetConn = new NpgsqlConnection(targetConnectionString);
         await targetConn.OpenAsync(ct);
-
-        // Disable triggers to avoid FK violations during bulk load
-        await using (var disableCmd = new NpgsqlCommand(
-            $"ALTER TABLE {pgTableName} DISABLE TRIGGER ALL", targetConn))
-        {
-            disableCmd.CommandTimeout = timeout;
-            await disableCmd.ExecuteNonQueryAsync(ct);
-        }
+        await using var transaction = await targetConn.BeginTransactionAsync(ct);
 
         try
         {
+            // Disable triggers to avoid FK violations during bulk load
+            await using (var disableCmd = new NpgsqlCommand(
+                $"ALTER TABLE {pgTableName} DISABLE TRIGGER ALL", targetConn, transaction))
+            {
+                disableCmd.CommandTimeout = timeout;
+                await disableCmd.ExecuteNonQueryAsync(ct);
+            }
+
             await using var writer = await targetConn.BeginBinaryImportAsync(copyCommand, ct);
 
             while (await reader.ReadAsync(ct))
@@ -173,14 +174,21 @@ public class CrossPlatformBulkCopier
             }
 
             await writer.CompleteAsync(ct);
+
+            // Re-enable triggers within the same transaction
+            await using (var enableCmd = new NpgsqlCommand(
+                $"ALTER TABLE {pgTableName} ENABLE TRIGGER ALL", targetConn, transaction))
+            {
+                enableCmd.CommandTimeout = timeout;
+                await enableCmd.ExecuteNonQueryAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
         }
-        finally
+        catch
         {
-            // Re-enable triggers
-            await using var enableCmd = new NpgsqlCommand(
-                $"ALTER TABLE {pgTableName} ENABLE TRIGGER ALL", targetConn);
-            enableCmd.CommandTimeout = timeout;
-            await enableCmd.ExecuteNonQueryAsync(ct);
+            await transaction.RollbackAsync(ct);
+            throw;
         }
 
         return rowCount;
@@ -283,7 +291,7 @@ public class CrossPlatformBulkCopier
 
     /// <summary>
     /// Quotes a table name for PostgreSQL: dbo.Users → "public"."Users".
-    /// Maps "dbo" schema to "public".
+    /// Maps "dbo" schema to "public". Escapes embedded double-quotes.
     /// </summary>
     public static string QuotePgName(string tableName)
     {
@@ -294,16 +302,25 @@ public class CrossPlatformBulkCopier
             parts[0] = "public";
         }
 
-        return string.Join(".", parts.Select(p => $"\"{p.Trim('[', ']', '\"')}\""));
+        return string.Join(".", parts.Select(p =>
+        {
+            var clean = p.Trim('[', ']', '"');
+            return $"\"{clean.Replace("\"", "\"\"")}\"";
+        }));
     }
 
     /// <summary>
     /// Quotes a table name for SQL Server: dbo.Users → [dbo].[Users].
+    /// Escapes embedded ']' characters by doubling them to prevent SQL injection.
     /// </summary>
     public static string QuoteSqlName(string tableName)
     {
         var parts = tableName.Split('.');
-        return string.Join(".", parts.Select(p => $"[{p.Trim('[', ']')}]"));
+        return string.Join(".", parts.Select(p =>
+        {
+            var clean = p.Trim('[', ']');
+            return $"[{clean.Replace("]", "]]")}]";
+        }));
     }
 
     /// <summary>

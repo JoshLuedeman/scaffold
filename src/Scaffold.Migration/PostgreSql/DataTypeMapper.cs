@@ -47,6 +47,7 @@ public static class DataTypeMapper
         ["hierarchyid"] = "text",
         ["rowversion"] = "bytea",
         ["timestamp"] = "bytea",
+        ["sysname"] = "varchar(128)",
     };
 
     private static readonly Dictionary<string, string> WarningTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -200,10 +201,10 @@ public static class DataTypeMapper
             // Numeric types with precision/scale
             "decimal" or "numeric" => param2 != null ? $"numeric({param1},{param2})" : $"numeric({param1})",
 
-            // Date/time types with precision
-            "datetime2" => param1 != null ? $"timestamp({param1})" : "timestamp",
-            "datetimeoffset" => param1 != null ? $"timestamptz({param1})" : "timestamptz",
-            "time" => param1 != null ? $"time({param1})" : "time",
+            // Date/time types with precision (PostgreSQL max fractional-seconds precision is 6)
+            "datetime2" => param1 != null ? $"timestamp({ClampTemporalPrecision(param1)})" : "timestamp",
+            "datetimeoffset" => param1 != null ? $"timestamptz({ClampTemporalPrecision(param1)})" : "timestamptz",
+            "time" => param1 != null ? $"time({ClampTemporalPrecision(param1)})" : "time",
 
             // Binary types
             "varbinary" => "bytea",
@@ -216,6 +217,13 @@ public static class DataTypeMapper
             _ => TypeMap.TryGetValue(baseType, out var pgType) ? pgType : baseType
         };
     }
+
+    /// <summary>
+    /// Clamps a temporal precision string to the PostgreSQL maximum of 6.
+    /// SQL Server supports datetime2(7) (100ns), but PostgreSQL only supports up to 6 (microseconds).
+    /// </summary>
+    private static string ClampTemporalPrecision(string precision)
+        => int.TryParse(precision, out var p) ? Math.Min(p, 6).ToString() : precision;
 
     private static string MapLiteralDefault(string expr)
     {

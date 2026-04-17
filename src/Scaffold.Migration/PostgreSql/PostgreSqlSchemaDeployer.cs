@@ -81,8 +81,9 @@ public class PostgreSqlSchemaDeployer
             // Create non-public schemas
             foreach (var schema in schemas)
             {
+                var quotedSchema = DdlTranslator.QuoteIdentifier(schema);
                 await using var cmd = new NpgsqlCommand(
-                    $"CREATE SCHEMA IF NOT EXISTS \"{schema}\"", connection, transaction);
+                    $"CREATE SCHEMA IF NOT EXISTS {quotedSchema}", connection, transaction);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 

@@ -98,16 +98,21 @@ public class PostgreSqlValidationEngine
 
     /// <summary>
     /// Quotes a table name for SQL Server: dbo.Users → [dbo].[Users].
+    /// Escapes embedded ']' characters by doubling them to prevent SQL injection.
     /// </summary>
     internal static string QuoteSqlName(string tableName)
     {
         var parts = tableName.Split('.');
-        return string.Join(".", parts.Select(p => $"[{p.Trim('[', ']')}]"));
+        return string.Join(".", parts.Select(p =>
+        {
+            var clean = p.Trim('[', ']');
+            return $"[{clean.Replace("]", "]]")}]";
+        }));
     }
 
     /// <summary>
     /// Quotes a table name for PostgreSQL: dbo.Users → "public"."Users".
-    /// Maps "dbo" schema to "public".
+    /// Maps "dbo" schema to "public". Escapes embedded double-quotes.
     /// </summary>
     internal static string QuotePgName(string tableName)
     {
@@ -118,6 +123,10 @@ public class PostgreSqlValidationEngine
             parts[0] = "public";
         }
 
-        return string.Join(".", parts.Select(p => $"\"{p.Trim('[', ']', '\"')}\""));
+        return string.Join(".", parts.Select(p =>
+        {
+            var clean = p.Trim('[', ']', '"');
+            return $"\"{clean.Replace("\"", "\"\"")}\"";
+        }));
     }
 }
