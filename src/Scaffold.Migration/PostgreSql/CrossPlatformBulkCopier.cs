@@ -136,44 +136,47 @@ public class CrossPlatformBulkCopier
                 await disableCmd.ExecuteNonQueryAsync(ct);
             }
 
-            await using var writer = await targetConn.BeginBinaryImportAsync(copyCommand, ct);
-
-            while (await reader.ReadAsync(ct))
+            // Scope the writer so it is disposed before ENABLE TRIGGER ALL runs;
+            // Npgsql keeps the connection in COPY state until the writer is disposed.
+            await using (var writer = await targetConn.BeginBinaryImportAsync(copyCommand, ct))
             {
-                ct.ThrowIfCancellationRequested();
-                await writer.StartRowAsync(ct);
-
-                for (int c = 0; c < fieldCount; c++)
+                while (await reader.ReadAsync(ct))
                 {
-                    if (reader.IsDBNull(c))
+                    ct.ThrowIfCancellationRequested();
+                    await writer.StartRowAsync(ct);
+
+                    for (int c = 0; c < fieldCount; c++)
                     {
-                        await writer.WriteNullAsync(ct);
+                        if (reader.IsDBNull(c))
+                        {
+                            await writer.WriteNullAsync(ct);
+                        }
+                        else
+                        {
+                            var value = ConvertValue(reader.GetValue(c), sqlTypes[c]);
+                            var npgsqlType = MapToNpgsqlDbType(sqlTypes[c]);
+                            await writer.WriteAsync(value!, npgsqlType, ct);
+                        }
                     }
-                    else
+
+                    rowCount++;
+
+                    if (rowCount % DefaultBatchSize == 0)
                     {
-                        var value = ConvertValue(reader.GetValue(c), sqlTypes[c]);
-                        var npgsqlType = MapToNpgsqlDbType(sqlTypes[c]);
-                        await writer.WriteAsync(value!, npgsqlType, ct);
+                        var pct = (double)tableIndex / tableCount * 100 + (1.0 / tableCount * 50);
+                        progress?.Report(new MigrationProgress
+                        {
+                            Phase = "DataMigration",
+                            PercentComplete = pct,
+                            CurrentTable = tableName,
+                            RowsProcessed = rowCount,
+                            Message = $"Copying {tableName}: {rowCount:N0} rows so far..."
+                        });
                     }
                 }
 
-                rowCount++;
-
-                if (rowCount % DefaultBatchSize == 0)
-                {
-                    var pct = (double)tableIndex / tableCount * 100 + (1.0 / tableCount * 50);
-                    progress?.Report(new MigrationProgress
-                    {
-                        Phase = "DataMigration",
-                        PercentComplete = pct,
-                        CurrentTable = tableName,
-                        RowsProcessed = rowCount,
-                        Message = $"Copying {tableName}: {rowCount:N0} rows so far..."
-                    });
-                }
+                await writer.CompleteAsync(ct);
             }
-
-            await writer.CompleteAsync(ct);
 
             // Re-enable triggers within the same transaction
             await using (var enableCmd = new NpgsqlCommand(
