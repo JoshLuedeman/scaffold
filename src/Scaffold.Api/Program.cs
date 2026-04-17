@@ -56,6 +56,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddSignalR();
 builder.Services.AddScoped<MigrationProgressService>();
+builder.Services.AddSingleton<MigrationCancellationService>();
 builder.Services.AddHostedService<MigrationSchedulerService>();
 
 builder.Services.AddDataProtection();
