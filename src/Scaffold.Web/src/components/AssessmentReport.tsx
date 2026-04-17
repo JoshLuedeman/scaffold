@@ -160,6 +160,20 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground3,
     fontWeight: tokens.fontWeightSemibold,
   },
+  strategyRecommendationCard: {
+    padding: tokens.spacingVerticalL,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  downtimeCards: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: tokens.spacingHorizontalM,
+    marginTop: tokens.spacingVerticalM,
+  },
+  downtimeCard: {
+    padding: tokens.spacingVerticalM,
+    textAlign: 'center' as const,
+  },
 });
 
 function formatBytes(bytes: number): string {
@@ -208,7 +222,7 @@ export type IssueGroupBy = 'none' | 'severity' | 'type';
 
 export default function AssessmentReport({ report, projectId, platform }: { report: Report; projectId: string; platform?: DatabasePlatform }) {
   const styles = useStyles();
-  const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk } = report;
+  const { schema, dataProfile, performance, compatibilityIssues, recommendation, compatibilityScore, risk, strategyRecommendation } = report;
   const isPostgreSql = platform === 'PostgreSql';
   const [serviceSummaries, setServiceSummaries] = useState<ServiceCompatibility[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -340,6 +354,48 @@ export default function AssessmentReport({ report, projectId, platform }: { repo
           <Text size={300} className={styles.reasoning} block>{recommendation.reasoning}</Text>
         )}
       </Card>
+
+      {/* Strategy Recommendation */}
+      {strategyRecommendation && (
+        <>
+          <Divider />
+          <Text size={400} weight="semibold">Strategy Recommendation</Text>
+          <Card className={styles.strategyRecommendationCard}>
+            <CardHeader
+              header={
+                <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
+                  <Text weight="semibold">{strategyRecommendation.recommendedStrategy === 'ContinuousSync' ? 'Continuous Sync' : 'Cutover'}</Text>
+                  <Badge appearance="filled" color="brand">Recommended</Badge>
+                </div>
+              }
+            />
+            <Text size={300} className={styles.reasoning} block>
+              {strategyRecommendation.reasoning}
+            </Text>
+            <div className={styles.downtimeCards}>
+              <Card className={styles.downtimeCard}>
+                <Text size={200} className={styles.detailLabel} block>Cutover Downtime</Text>
+                <Text size={400} weight="semibold">{strategyRecommendation.estimatedDowntimeCutover}</Text>
+              </Card>
+              {strategyRecommendation.estimatedDowntimeContinuousSync && (
+                <Card className={styles.downtimeCard}>
+                  <Text size={200} className={styles.detailLabel} block>Continuous Sync Downtime</Text>
+                  <Text size={400} weight="semibold">{strategyRecommendation.estimatedDowntimeContinuousSync}</Text>
+                </Card>
+              )}
+            </div>
+            {strategyRecommendation.considerations.length > 0 && (
+              <div style={{ marginTop: tokens.spacingVerticalM, display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS }}>
+                {strategyRecommendation.considerations.map((consideration, idx) => (
+                  <MessageBar key={idx} intent="warning">
+                    <MessageBarBody>{consideration}</MessageBarBody>
+                  </MessageBar>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
 
       {/* Service Compatibility */}
       <Divider />

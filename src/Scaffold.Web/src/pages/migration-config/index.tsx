@@ -471,6 +471,7 @@ export default function MigrationConfig() {
         strategy={strategy}
         onStrategyChange={setStrategy}
         sourcePlatform={sourcePlatform}
+        strategyRecommendation={project.assessment?.strategyRecommendation}
       />
 
       <ObjectSelectionSection

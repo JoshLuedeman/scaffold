@@ -367,4 +367,95 @@ describe('AssessmentReport', () => {
       expect(screen.getByText('View (1)')).toBeInTheDocument();
     });
   });
+
+  describe('strategy recommendation', () => {
+    it('renders strategy recommendation section when present', () => {
+      const report = makeReport({
+        strategyRecommendation: {
+          recommendedStrategy: 'ContinuousSync',
+          reasoning: 'Large database with high availability requirements',
+          estimatedDowntimeCutover: '4-6 hours',
+          estimatedDowntimeContinuousSync: '< 5 minutes',
+          considerations: ['Requires Change Tracking enabled'],
+        },
+      });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('Strategy Recommendation')).toBeInTheDocument();
+      expect(screen.getByText('Continuous Sync')).toBeInTheDocument();
+      expect(screen.getByText('Recommended')).toBeInTheDocument();
+      expect(screen.getByText('Large database with high availability requirements')).toBeInTheDocument();
+    });
+
+    it('displays downtime comparison cards', () => {
+      const report = makeReport({
+        strategyRecommendation: {
+          recommendedStrategy: 'Cutover',
+          reasoning: 'Small database',
+          estimatedDowntimeCutover: '30 minutes',
+          estimatedDowntimeContinuousSync: '< 2 minutes',
+          considerations: [],
+        },
+      });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('Cutover Downtime')).toBeInTheDocument();
+      expect(screen.getByText('30 minutes')).toBeInTheDocument();
+      expect(screen.getByText('Continuous Sync Downtime')).toBeInTheDocument();
+      expect(screen.getByText('< 2 minutes')).toBeInTheDocument();
+    });
+
+    it('renders considerations as warning MessageBars', () => {
+      const report = makeReport({
+        strategyRecommendation: {
+          recommendedStrategy: 'ContinuousSync',
+          reasoning: 'Best for this workload',
+          estimatedDowntimeCutover: '2 hours',
+          considerations: ['Requires Change Tracking', 'Network bandwidth must be sufficient'],
+        },
+      });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('Requires Change Tracking')).toBeInTheDocument();
+      expect(screen.getByText('Network bandwidth must be sufficient')).toBeInTheDocument();
+    });
+
+    it('does not render strategy recommendation when not present', () => {
+      const report = makeReport({ strategyRecommendation: undefined });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.queryByText('Strategy Recommendation')).not.toBeInTheDocument();
+    });
+
+    it('hides Continuous Sync downtime card when not provided', () => {
+      const report = makeReport({
+        strategyRecommendation: {
+          recommendedStrategy: 'Cutover',
+          reasoning: 'Simple migration',
+          estimatedDowntimeCutover: '1 hour',
+          considerations: [],
+        },
+      });
+      render(
+        <TestWrapper>
+          <AssessmentReport report={report} projectId="proj-1" />
+        </TestWrapper>,
+      );
+      expect(screen.getByText('Cutover Downtime')).toBeInTheDocument();
+      expect(screen.getByText('1 hour')).toBeInTheDocument();
+      expect(screen.queryByText('Continuous Sync Downtime')).not.toBeInTheDocument();
+    });
+  });
 });
