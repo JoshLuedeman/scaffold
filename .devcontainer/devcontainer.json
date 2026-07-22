@@ -1,0 +1,26 @@
+{
+  "name": "Scaffold (.NET 8 + React)",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:1-8.0-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/azure-cli:1": {}
+  },
+  "forwardPorts": [5062, 5173, 8080, 3000, 1433, 5432],
+  "postCreateCommand": "dotnet restore || true; dotnet tool restore || true; ( cd src/Scaffold.Web && npm ci ) || true; bash .devcontainer/setup-hve-core.sh || true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

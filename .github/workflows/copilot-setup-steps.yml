@@ -1,0 +1,68 @@
+name: Copilot Setup Steps
+
+# Prepares the GitHub Copilot cloud sandbox for this repository: provisions the
+# .NET 8 + Node 20 toolchain, restores this repo's dependencies, and installs
+# the hve-core-all Copilot CLI plugin (best-effort / non-blocking).
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+permissions:
+  contents: read
+
+jobs:
+  # The job name MUST be exactly `copilot-setup-steps` for the Copilot coding
+  # agent to discover and run it before starting a task.
+  copilot-setup-steps:
+    name: Copilot Setup Steps
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/Scaffold.Web/package-lock.json
+
+      - name: Restore .NET dependencies
+        continue-on-error: true
+        run: |
+          dotnet restore
+          dotnet tool restore
+
+      - name: Install frontend dependencies
+        continue-on-error: true
+        working-directory: src/Scaffold.Web
+        run: npm ci
+
+      - name: Install hve-core-all plugin
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash .devcontainer/setup-hve-core.sh
+
+      - name: Verify tools
+        run: |
+          echo "dotnet:  $(dotnet --version 2>/dev/null || echo 'not available')"
+          echo "node:    $(node --version 2>/dev/null || echo 'not available')"
+          echo "npm:     $(npm --version 2>/dev/null || echo 'not available')"
+          echo "copilot: $(copilot --version 2>/dev/null || echo 'not available')"
+          copilot plugin list || true
